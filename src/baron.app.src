@@ -1,0 +1,17 @@
+{application, baron,
+[
+    {description, "baron compiler"},
+    {vsn, "1.0.0"},
+    {modules,
+        [ base, type, absform
+        , baron
+        ] },
+    {registered,
+        [
+        ] },
+    {applications,
+        [ kernel, stdlib, crypto
+        ] },
+    {env, []}
+]}.
+
