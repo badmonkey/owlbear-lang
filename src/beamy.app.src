@@ -1,0 +1,17 @@
+{application, beamy,
+[
+    {description, "test tool for beamtools"},
+    {vsn, "1.0.0"},
+    {modules,
+        [ beamy
+        ] },
+    {registered,
+        [
+        ] },
+    {applications,
+        [ kernel, stdlib, crypto
+        , beamtools, consoletools
+        ] },
+    {env, []}
+]}.
+

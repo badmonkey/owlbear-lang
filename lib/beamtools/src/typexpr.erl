@@ -1,5 +1,5 @@
 
--module(type).
+-module(typexpr).
 
 -export([]).
 

@@ -1,10 +1,9 @@
-{application, baron,
+{application, consoletools,
 [
-    {description, "baron compiler"},
+    {description, "Console tools"},
     {vsn, "1.0.0"},
     {modules,
-        [ base, type, absform
-        , baron
+        [ consoleapp, getopts
         ] },
     {registered,
         [
