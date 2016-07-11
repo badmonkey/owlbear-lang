@@ -107,7 +107,12 @@ scan_macro_use([], Chunk) ->
     {lists:reverse(Chunk), []};
     
 scan_macro_use([?PATTERN_LBRACKET = TokLeft | Rest], Chunk) ->
-    {lists:reverse([ TokLeft | Chunk]), Rest};
+	{NewChunk, RestInput} = chunk_exprs(Rest, [], Chunk, 0),
+	case RestInput of
+		[?PATTERN_RBRACKET = TokRight | Rest] ->
+    ;	_ ->
+	end;
+    {NewChunk, Rest};
 
 scan_macro_use(Input, Chunk) ->
     {lists:reverse(Chunk), Input}.
@@ -186,6 +191,57 @@ chunk_tokens([?PATTERN_DASH = TokDash, ?PATTERN_ATOM(Directive) = TokName | Rest
 chunk_tokens([Hd | Rest], Chunk) ->
     chunk_tokens(Rest, [Hd | Chunk]).
     
+
+%%%%% ------------------------------------------------------- %%%%%
+
+% -what(...(...)...).
+% -what(...(...)).
+% -what(..., ...(...)..., ...).
+
+chunk_exprs([], _Chunk, _Stream, 0) ->
+	NewChunk = make_chunk_token(Chunk),
+	{ lists:reverse([NewChunk | Stream]), [] };
+
+chunk_exprs([], _Chunk, _Stream, Depth) ->
+	{ {error, "@todo fix error"}, []};
+
+
+chunk_exprs([?PATTERN_LBRACKET = TokLeft | Rest] = Input, Chunk, Stream, Depth) ->
+	chunk_exprs(Rest, [TokLeft | Chunk], Stream, Depth + 1);
+
+chunk_exprs([?PATTERN_RBRACKET | Rest] = Input, Chunk, Stream, 0) ->
+	NewChunk = make_chunk_token(Chunk),
+	{ lists:reverse([NewChunk | Stream]), Input };
+
+chunk_exprs([?PATTERN_RBRACKET = TokRight | Rest], Chunk, Stream, Depth) ->
+	chunk_exprs(Rest, [TokRight | Chunk], Stream, Depth - 1);
+
+chunk_exprs([?PATTERN_COMMA = TokComma | Rest], Chunk, Stream, 0) ->
+	NewChunk = make_chunk_token(Chunk),
+	chunk_exprs(Rest, [], [TokComma, NewChunk | Stream], 0);
+
+
+chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_ATOM(_) = TokName | Rest], Chunk, Stream, Depth) ->
+    {Chunk2, RestInput} = scan_macro_use(Rest, [TokName, TokQMark]),
+	NewChunk = make_chunk_token(Chunk),
+    chunk_exprs(RestInput, [], [NewChunk | Stream], Depth);
+    
+chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_VAR(_) = TokName | Rest], Chunk, Stream, Depth) ->
+    {Chunk, RestInput} = scan_macro_use(Rest, [TokName, TokQMark]),
+	NewChunk = make_chunk_token(Chunk),
+    chunk_exprs(RestInput, [], [NewChunk | Stream], Depth);
+
+chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_QMARK = TokQMark2, ?PATTERN_VAR(_) = TokName | Rest], Chunk, Stream, Depth) ->
+    {Chunk, RestInput} = scan_macro_use(Rest, [TokName, TokQMark2, TokQMark]),
+	NewChunk = make_chunk_token(Chunk),
+    chunk_exprs(RestInput, [], [NewChunk | Stream], Depth);
+
+
+chunk_exprs([Hd | Rest], Chunk, Stream, Depth) ->
+	chunk_exprs(Rest, [Hd | Chunk], Stream, Depth).
+
+
+	
 
 %%%%% ------------------------------------------------------- %%%%%
 

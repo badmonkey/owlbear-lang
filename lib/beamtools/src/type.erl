@@ -20,8 +20,9 @@
 -type location() :: line() | {line(), column()}.
 
 -type symbol() :: atom() | float() | integer() | string().
--type token() :: {atom(), location(), symbol()}
-               | {atom(), location()}.
+-type token() :: {atom(), location()}
+               | {atom(), location(), symbol()}
+			   | {atom(), location(), {embed, [token()]} }.
 -type tokens() :: [token()].
                
 -type error_info() :: {location(), module(), term()}.
