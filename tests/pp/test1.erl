@@ -11,7 +11,12 @@ version() ->
 -else.
 
 version() ->
-    ?ADVVERSION(1, (4 + 7), "beta", {1,1}).
+    ?ADVVERSION( abc
+               , ?MODULE
+               , ?TEST(1)
+               , 3 + (4 + 7)    % brackets need to balance
+               , {1,1}          % test for comma splitting tuples
+               , [1,2,3] ).     % test for comma splitting lists
 
 -endif.
 

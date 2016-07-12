@@ -155,7 +155,7 @@ build_item( {option, Id, Type, Name, Help}
 build_item( {option, Id, Type, Name, Help, Callback}
           , #consoleapp_state{ getopt_spec = Spec } = State)        ->
     {Short, Long} = case Name of
-                        {_, _} = SL             -> SL
+                        {_, _} = SL             -> SL       % @todo help formatting is no so good
                     ;   S when is_integer(S)    -> {S, undefined}
                     ;   L when is_list(L)       -> {undefined, L}
                     end,

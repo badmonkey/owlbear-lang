@@ -69,7 +69,7 @@ process({error, _ErrorInfo, _} = Error, _State) ->
     Error;
     
 process({ok, Tokens, EndLoc}, _State ) ->
-    {ok, filter_tokens(Tokens, []), EndLoc}.
+    {ok, filter_tokens(Tokens, tokstream:new(?TOKEN_CHUNK)), EndLoc}.
 
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -78,118 +78,114 @@ process({ok, Tokens, EndLoc}, _State ) ->
 % scan list of tokens for interesting tokens (hiding the rest in fake 'chunk' tokens).
 
 filter_tokens([], Stream) ->
-    lists:flatten( lists:reverse(Stream) );
+    tokstream:final(Stream);
 
 filter_tokens([?PATTERN_QMARK = TokQMark, ?PATTERN_ATOM(_) = TokName | Rest], Stream) ->
-    {Chunk, RestInput} = scan_macro_use(Rest, [TokName, TokQMark]),
-    filter_tokens(RestInput, [Chunk | Stream]);
+    {RestInput, Stream2} = scan_macro_use(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokName])),
+    filter_tokens(RestInput, Stream2);
     
 filter_tokens([?PATTERN_QMARK = TokQMark, ?PATTERN_VAR(_) = TokName | Rest], Stream) ->
-    {Chunk, RestInput} = scan_macro_use(Rest, [TokName, TokQMark]),
-    filter_tokens(RestInput, [Chunk | Stream]);
-    
+    {RestInput, Stream2} = scan_macro_use(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokName])),
+    filter_tokens(RestInput, Stream2);
+
 filter_tokens([?PATTERN_DASH = TokDash, ?PATTERN_ATOM(Directive) = TokName | Rest], Stream) ->
-    {Chunk, RestInput} =    case lists:member(Directive, directives()) of
-                                true    -> scan_directive(Directive, Rest, [TokName, TokDash])
-                            ;   false   -> chunk_tokens(Rest, [TokName, TokDash])
+    {RestInput, Stream2} =  case lists:member(Directive, directives()) of
+                                true    -> scan_directive(Directive, Rest, tokstream:push_many_tokens(Stream, [TokDash, TokName]))
+                            ;   false   -> chunk_tokens(Rest, tokstream:start_chunk(Stream, [TokDash, TokName]))
                             end,
-    filter_tokens(RestInput, [Chunk | Stream]);
+    filter_tokens(RestInput, Stream2);
 
 filter_tokens(Input, Stream) ->
-    {Chunk, RestInput} = chunk_tokens(Input, []),
-    filter_tokens(RestInput, [Chunk | Stream]).
+    {RestInput, Stream2} = chunk_tokens(Input, Stream),
+    filter_tokens(RestInput, Stream2).
 
 
 %%%%% ------------------------------------------------------- %%%%%
 
 
-scan_macro_use([], Chunk) ->
-    {lists:reverse(Chunk), []};
+scan_macro_use([], Stream) ->
+    {[], Stream};
     
-scan_macro_use([?PATTERN_LBRACKET = TokLeft | Rest], Chunk) ->
-	{NewChunk, RestInput} = chunk_exprs(Rest, [], Chunk, 0),
-	case RestInput of
-		[?PATTERN_RBRACKET = TokRight | Rest] ->
-    ;	_ ->
-	end;
-    {NewChunk, Rest};
-
-scan_macro_use(Input, Chunk) ->
-    {lists:reverse(Chunk), Input}.
-
-
-%%%%% ------------------------------------------------------- %%%%%
-
-
-scan_directive(_, [], Chunk) ->
-    {lists:reverse(Chunk), []};
-    
-    
-scan_directive('else', [?PATTERN_DOT = TokDot | Rest], Chunk) ->
-    {lists:reverse([TokDot | Chunk]), Rest};
-    
-scan_directive('endif', [?PATTERN_DOT = TokDot | Rest], Chunk) ->
-    {lists:reverse([TokDot | Chunk]), Rest};
-    
-    
-scan_directive('undef', Input, Chunk) ->
-    {NewChunk, RestInput} = match_macro_name(Input),
-    {lists:reverse([NewChunk | Chunk]), RestInput};
-    
-scan_directive('ifdef', Input, Chunk) ->
-    {NewChunk, RestInput} = match_macro_name(Input),
-    {lists:reverse([NewChunk | Chunk]), RestInput};
-    
-scan_directive('ifndef', Input, Chunk) ->
-    {NewChunk, RestInput} = match_macro_name(Input),
-    {lists:reverse([NewChunk | Chunk]), RestInput};
-
-    
-scan_directive(_, Input, Chunk) ->
-    chunk_tokens(Input, Chunk).     % likely force an error in the next stage
-    
-    
-match_macro_name([?PATTERN_LBRACKET = TokLeft, ?PATTERN_ATOM(_) = TokName, ?PATTERN_RBRACKET = TokRight, ?PATTERN_DOT = TokDot | Rest]) ->
-    {[TokLeft, TokName, TokRight, TokDot], Rest};
-    
-match_macro_name([?PATTERN_LBRACKET = TokLeft, ?PATTERN_VAR(_) = TokName, ?PATTERN_RBRACKET = TokRight, ?PATTERN_DOT = TokDot | Rest]) ->
-    {[TokLeft, TokName, TokRight, TokDot], Rest};
-    
-match_macro_name(Input) ->
-    chunk_tokens(Input, []).
-
-
-%%%%% ------------------------------------------------------- %%%%%
-
-
-make_chunk_token([]) ->
-    [];
-    
-make_chunk_token(Chunk) ->    
-    Data = lists:reverse(Chunk),
-    {?TOKEN_CHUNK, element(2, hd(Data)), Data}.
-    
-
-chunk_tokens([], Chunk) ->
-    {make_chunk_token(Chunk), []};
-    
-chunk_tokens([?PATTERN_QMARK, ?PATTERN_ATOM(_) | _Rest] = Input, Chunk) ->
-    {make_chunk_token(Chunk), Input};
-    
-chunk_tokens([?PATTERN_QMARK, ?PATTERN_VAR(_) | _Rest] = Input, Chunk) ->
-    {make_chunk_token(Chunk), Input};    
-    
-chunk_tokens([?PATTERN_QMARK, ?PATTERN_QMARK, ?PATTERN_VAR(_) | _Rest] = Input, Chunk) ->
-    {make_chunk_token(Chunk), Input};  
-    
-chunk_tokens([?PATTERN_DASH = TokDash, ?PATTERN_ATOM(Directive) = TokName | Rest] = Input, Chunk) ->
-    case lists:member(Directive, directives()) of
-        true    -> {make_chunk_token(Chunk), Input}
-    ;   false   -> chunk_tokens(Rest, [TokName, TokDash | Chunk])   % pushed in reverse order
+scan_macro_use([?PATTERN_LBRACKET = TokLeft | Rest], Stream) ->
+    {RestInput, Stream2} = chunk_exprs(Rest, tokstream:push_token(Stream, TokLeft), 0),
+    case RestInput of
+        [?PATTERN_RBRACKET = TokRight | Rest2] ->
+            {Rest2, tokstream:push_token(Stream2, TokRight)}
+            
+    ;   _               ->
+            chunk_tokens(RestInput, Stream2)
     end;
 
-chunk_tokens([Hd | Rest], Chunk) ->
-    chunk_tokens(Rest, [Hd | Chunk]).
+scan_macro_use(Input, Stream) ->
+    {Input, Stream}.
+
+
+%%%%% ------------------------------------------------------- %%%%%
+
+
+scan_directive(_, [], Stream) ->
+    {[], Stream};
+    
+    
+scan_directive('else', [?PATTERN_DOT = TokDot | Rest], Stream) ->
+    {Rest, tokstream:push_token(Stream, TokDot)};
+    
+scan_directive('endif', [?PATTERN_DOT = TokDot | Rest], Stream) ->
+    {Rest, tokstream:push_token(Stream, TokDot)};
+    
+    
+scan_directive('undef', Input, Stream) ->
+    match_macro_name(Input, Stream);
+    
+scan_directive('ifdef', Input, Stream) ->
+    match_macro_name(Input, Stream);
+    
+scan_directive('ifndef', Input, Stream) ->
+    match_macro_name(Input, Stream);
+    
+    
+scan_directive('module', Input, Stream) ->
+    match_macro_name(Input, Stream);        % move out of pp grammar
+
+    
+scan_directive(_, Input, Stream) ->
+    chunk_tokens(Input, Stream).     % likely force an error in the next stage
+    
+    
+match_macro_name([?PATTERN_LBRACKET = TokLeft, ?PATTERN_ATOM(_) = TokName, ?PATTERN_RBRACKET = TokRight, ?PATTERN_DOT = TokDot | Rest], Stream) ->
+    {Rest, tokstream:push_many_tokens(Stream, [TokLeft, TokName, TokRight, TokDot])};
+    
+match_macro_name([?PATTERN_LBRACKET = TokLeft, ?PATTERN_VAR(_) = TokName, ?PATTERN_RBRACKET = TokRight, ?PATTERN_DOT = TokDot | Rest], Stream) ->
+    {Rest, tokstream:push_many_tokens(Stream, [TokLeft, TokName, TokRight, TokDot])};
+    
+match_macro_name(Input, Stream) ->
+    chunk_tokens(Input, Stream).    %% @todo not sure, force in parser?
+
+
+%%%%% ------------------------------------------------------- %%%%%
+
+
+chunk_tokens([], Stream) ->
+    {[], tokstream:end_chunk(Stream)};
+    
+chunk_tokens([?PATTERN_QMARK, ?PATTERN_ATOM(_) | _Rest] = Input, Stream) ->
+    {Input, tokstream:end_chunk(Stream)};
+    
+chunk_tokens([?PATTERN_QMARK, ?PATTERN_VAR(_) | _Rest] = Input, Stream) ->
+    {Input, tokstream:end_chunk(Stream)};
+
+    
+chunk_tokens([?PATTERN_DASH = TokDash, ?PATTERN_ATOM(Directive) = TokName | Rest] = Input, Stream) ->
+    case lists:member(Directive, directives()) of
+        true    -> {Input, tokstream:end_chunk(Stream)}
+    ;   false   ->
+            Stream2 = tokstream:push_to_chunk(Stream, [TokDash, TokName]),
+            chunk_tokens(Rest, Stream2)
+    end;
+
+    
+chunk_tokens([Hd | Rest], Stream) ->
+    chunk_tokens(Rest, tokstream:push_to_chunk(Stream, Hd)).
     
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -198,56 +194,54 @@ chunk_tokens([Hd | Rest], Chunk) ->
 % -what(...(...)).
 % -what(..., ...(...)..., ...).
 
-chunk_exprs([], _Chunk, _Stream, 0) ->
-	NewChunk = make_chunk_token(Chunk),
-	{ lists:reverse([NewChunk | Stream]), [] };
+% @todo change to handle multiple sets of balanced chars for comma handling
+% ( )  [ ]  { }   < >
 
-chunk_exprs([], _Chunk, _Stream, Depth) ->
-	{ {error, "@todo fix error"}, []};
+chunk_exprs([], Stream, 0) ->
+    {[], tokstream:end_chunk(Stream) };
 
-
-chunk_exprs([?PATTERN_LBRACKET = TokLeft | Rest] = Input, Chunk, Stream, Depth) ->
-	chunk_exprs(Rest, [TokLeft | Chunk], Stream, Depth + 1);
-
-chunk_exprs([?PATTERN_RBRACKET | Rest] = Input, Chunk, Stream, 0) ->
-	NewChunk = make_chunk_token(Chunk),
-	{ lists:reverse([NewChunk | Stream]), Input };
-
-chunk_exprs([?PATTERN_RBRACKET = TokRight | Rest], Chunk, Stream, Depth) ->
-	chunk_exprs(Rest, [TokRight | Chunk], Stream, Depth - 1);
-
-chunk_exprs([?PATTERN_COMMA = TokComma | Rest], Chunk, Stream, 0) ->
-	NewChunk = make_chunk_token(Chunk),
-	chunk_exprs(Rest, [], [TokComma, NewChunk | Stream], 0);
+chunk_exprs([], Stream, _Depth) ->
+    {[], tokstream:error(Stream)};  % @todo error message
 
 
-chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_ATOM(_) = TokName | Rest], Chunk, Stream, Depth) ->
-    {Chunk2, RestInput} = scan_macro_use(Rest, [TokName, TokQMark]),
-	NewChunk = make_chunk_token(Chunk),
-    chunk_exprs(RestInput, [], [NewChunk | Stream], Depth);
+chunk_exprs([?PATTERN_LBRACKET = TokLeft | Rest], Stream, Depth) ->
+    chunk_exprs(Rest, tokstream:push_to_chunk(Stream, TokLeft), Depth + 1);
+
+chunk_exprs([?PATTERN_RBRACKET | _Rest] = Input, Stream, 0) ->
+    {Input, tokstream:end_chunk(Stream) };
+
+chunk_exprs([?PATTERN_RBRACKET = TokRight | Rest], Stream, Depth) ->
+    chunk_exprs(Rest, tokstream:push_to_chunk(Stream, TokRight), Depth - 1);
+
+%chunk_exprs([?PATTERN_COMMA = TokComma | Rest], Stream, 0) ->
+%    chunk_exprs(Rest, tokstream:push_token(Stream, TokComma), 0);
+
+
+chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_ATOM(_) = TokName | Rest], Stream, Depth) ->
+    {RestInput, Stream2} = scan_macro_use(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokName])),
+    chunk_exprs(RestInput, Stream2, Depth);
     
-chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_VAR(_) = TokName | Rest], Chunk, Stream, Depth) ->
-    {Chunk, RestInput} = scan_macro_use(Rest, [TokName, TokQMark]),
-	NewChunk = make_chunk_token(Chunk),
-    chunk_exprs(RestInput, [], [NewChunk | Stream], Depth);
+chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_VAR(_) = TokName | Rest], Stream, Depth) ->
+    {RestInput, Stream2} = scan_macro_use(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokName])),
+    chunk_exprs(RestInput, Stream2, Depth);
 
-chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_QMARK = TokQMark2, ?PATTERN_VAR(_) = TokName | Rest], Chunk, Stream, Depth) ->
-    {Chunk, RestInput} = scan_macro_use(Rest, [TokName, TokQMark2, TokQMark]),
-	NewChunk = make_chunk_token(Chunk),
-    chunk_exprs(RestInput, [], [NewChunk | Stream], Depth);
+chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_QMARK = TokQMark2, ?PATTERN_VAR(_) = TokName | Rest], Stream, Depth) ->
+    chunk_exprs(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokQMark2, TokName]), Depth);
 
 
-chunk_exprs([Hd | Rest], Chunk, Stream, Depth) ->
-	chunk_exprs(Rest, [Hd | Chunk], Stream, Depth).
+chunk_exprs([Hd | Rest], Stream, Depth) ->
+    chunk_exprs(Rest, tokstream:push_to_chunk(Stream, Hd), Depth).
 
 
-	
+    
 
 %%%%% ------------------------------------------------------- %%%%%
 
 
 directives() ->
     [include, include_lib, define, ifdef, ifndef, undef, else, endif, error, warning, module, file].
+    
+% move module from internal to user parsing
     
 % implement in phase 2    
 % if, elif    
