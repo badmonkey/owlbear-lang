@@ -10,6 +10,8 @@ version() ->
 
 -else.
 
+-define(TEST(X), ??X).
+
 version() ->
     ?ADVVERSION( abc
                , ?MODULE

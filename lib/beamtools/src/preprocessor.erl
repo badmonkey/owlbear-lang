@@ -8,11 +8,12 @@
 
 
 -record(pp_state,
-       { something
-       , scanner                :: type:scanner()
-       , macros                 :: #{ string() => type:tokens() }
-       , replace_wrapper        :: fun( ( type:tokens() ) -> type:tokens() )
+       { scanner                		:: type:scanner()
+       , macros                 		:: #{ string() => type:tokens() }
+       , replace_wrapper        		:: fun( ( type:tokens() ) -> type:tokens() )
        , resolver
+	   , directives			= []		:: [atom()]
+	   , directive_cb	  	= undefined	:: undefined | fun( ( atom(), type:tokens(), #pp_state{} ) -> #pp_state{} )
        }).
 
        
@@ -68,8 +69,8 @@ new(#{} = Opts) ->
 process({error, _ErrorInfo, _} = Error, _State) ->
     Error;
     
-process({ok, Tokens, EndLoc}, _State ) ->
-    {ok, filter_tokens(Tokens, tokstream:new(?TOKEN_CHUNK)), EndLoc}.
+process({ok, Tokens, EndLoc}, State ) ->
+    {ok, filter_tokens(Tokens, tokstream:new(?TOKEN_CHUNK, State)), EndLoc}.
 
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -91,7 +92,7 @@ filter_tokens([?PATTERN_QMARK = TokQMark, ?PATTERN_VAR(_) = TokName | Rest], Str
 filter_tokens([?PATTERN_DASH = TokDash, ?PATTERN_ATOM(Directive) = TokName | Rest], Stream) ->
     {RestInput, Stream2} =  case lists:member(Directive, directives()) of
                                 true    -> scan_directive(Directive, Rest, tokstream:push_many_tokens(Stream, [TokDash, TokName]))
-                            ;   false   -> chunk_tokens(Rest, tokstream:start_chunk(Stream, [TokDash, TokName]))
+                            ;   false   -> chunk_tokens(Rest, tokstream:push_to_chunk(Stream, [TokDash, TokName]))
                             end,
     filter_tokens(RestInput, Stream2);
 
@@ -142,12 +143,12 @@ scan_directive('ifdef', Input, Stream) ->
     
 scan_directive('ifndef', Input, Stream) ->
     match_macro_name(Input, Stream);
-    
-    
-scan_directive('module', Input, Stream) ->
-    match_macro_name(Input, Stream);        % move out of pp grammar
 
+
+scan_directive('define', Input, Stream) ->
+	chunk_tokens(Input, Stream);
     
+        
 scan_directive(_, Input, Stream) ->
     chunk_tokens(Input, Stream).     % likely force an error in the next stage
     
@@ -173,15 +174,9 @@ chunk_tokens([?PATTERN_QMARK, ?PATTERN_ATOM(_) | _Rest] = Input, Stream) ->
     
 chunk_tokens([?PATTERN_QMARK, ?PATTERN_VAR(_) | _Rest] = Input, Stream) ->
     {Input, tokstream:end_chunk(Stream)};
-
     
-chunk_tokens([?PATTERN_DASH = TokDash, ?PATTERN_ATOM(Directive) = TokName | Rest] = Input, Stream) ->
-    case lists:member(Directive, directives()) of
-        true    -> {Input, tokstream:end_chunk(Stream)}
-    ;   false   ->
-            Stream2 = tokstream:push_to_chunk(Stream, [TokDash, TokName]),
-            chunk_tokens(Rest, Stream2)
-    end;
+chunk_tokens([?PATTERN_DASH, ?PATTERN_ATOM(_) | _Rest] = Input, Stream) ->
+    {Input, Stream};
 
     
 chunk_tokens([Hd | Rest], Stream) ->
@@ -190,12 +185,6 @@ chunk_tokens([Hd | Rest], Stream) ->
 
 %%%%% ------------------------------------------------------- %%%%%
 
-% -what(...(...)...).
-% -what(...(...)).
-% -what(..., ...(...)..., ...).
-
-% @todo change to handle multiple sets of balanced chars for comma handling
-% ( )  [ ]  { }   < >
 
 chunk_exprs([], Stream, 0) ->
     {[], tokstream:end_chunk(Stream) };
@@ -212,9 +201,6 @@ chunk_exprs([?PATTERN_RBRACKET | _Rest] = Input, Stream, 0) ->
 
 chunk_exprs([?PATTERN_RBRACKET = TokRight | Rest], Stream, Depth) ->
     chunk_exprs(Rest, tokstream:push_to_chunk(Stream, TokRight), Depth - 1);
-
-%chunk_exprs([?PATTERN_COMMA = TokComma | Rest], Stream, 0) ->
-%    chunk_exprs(Rest, tokstream:push_token(Stream, TokComma), 0);
 
 
 chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_ATOM(_) = TokName | Rest], Stream, Depth) ->
@@ -239,9 +225,8 @@ chunk_exprs([Hd | Rest], Stream, Depth) ->
 
 
 directives() ->
-    [include, include_lib, define, ifdef, ifndef, undef, else, endif, error, warning, module, file].
+    [include, include_lib, define, ifdef, ifndef, undef, else, endif, error, warning, file].
     
-% move module from internal to user parsing
     
 % implement in phase 2    
 % if, elif    
