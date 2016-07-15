@@ -8,16 +8,17 @@
 
 
 -record(pp_state,
-       { scanner                		:: type:scanner()
-       , macros                 		:: #{ string() => type:tokens() }
-       , replace_wrapper        		:: fun( ( type:tokens() ) -> type:tokens() )
+       { scanner                        :: type:scanner()
+       , macros                         :: #{ string() => type:tokens() }
+       , replace_wrapper                :: fun( ( type:tokens() ) -> type:tokens() )
        , resolver
-	   , directives			= []		:: [atom()]
-	   , directive_cb	  	= undefined	:: undefined | fun( ( atom(), type:tokens(), #pp_state{} ) -> #pp_state{} )
+       , directives         = []        :: [atom()]
+       , directive_cb       = undefined :: undefined | fun( ( atom(), type:tokens(), #pp_state{} ) -> #pp_state{} )
        }).
 
        
 -define(TOKEN_CHUNK, 'beamtools$chunkpp').
+-define(TOKEN_DIRECTIVE, 'beamtools$directivepp').
        
 -define(PATTERN_DASH, {'-',_}).    
 -define(PATTERN_QMARK, {'?',_}).
@@ -58,7 +59,7 @@ file(FileName, #{} = Opts) ->
 
 
 new(#{} = Opts) ->
-    #pp_state{}.
+    #pp_state{ directives = [module, comment] }.
     
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -92,7 +93,15 @@ filter_tokens([?PATTERN_QMARK = TokQMark, ?PATTERN_VAR(_) = TokName | Rest], Str
 filter_tokens([?PATTERN_DASH = TokDash, ?PATTERN_ATOM(Directive) = TokName | Rest], Stream) ->
     {RestInput, Stream2} =  case lists:member(Directive, directives()) of
                                 true    -> scan_directive(Directive, Rest, tokstream:push_many_tokens(Stream, [TokDash, TokName]))
-                            ;   false   -> chunk_tokens(Rest, tokstream:push_to_chunk(Stream, [TokDash, TokName]))
+                            ;   false   ->
+                                    State = tokstream:get_userdata(Stream),
+                                    case lists:member(Directive, State#pp_state.directives) of
+                                        true    ->
+                                            NewToken = tokstream:make_embed_token(?TOKEN_DIRECTIVE, TokName),
+                                            scan_directive(custom, Rest, tokstream:push_many_tokens(Stream, [TokDash, NewToken]))
+                                    ;   false   ->
+                                            chunk_tokens(Rest, tokstream:push_to_chunk(Stream, [TokDash, TokName]))
+                                    end
                             end,
     filter_tokens(RestInput, Stream2);
 
@@ -146,7 +155,18 @@ scan_directive('ifndef', Input, Stream) ->
 
 
 scan_directive('define', Input, Stream) ->
-	chunk_tokens(Input, Stream);
+    chunk_tokens(Input, Stream);
+
+
+scan_directive(custom, Input, Stream) ->
+    {RestInput, Stream2} = scan_macro_use(Input, Stream),
+    case RestInput of
+        [?PATTERN_DOT = TokDot | Rest2] ->
+            {Rest2, tokstream:push_token(Stream2, TokDot)}
+            
+    ;   _               ->
+            chunk_tokens(RestInput, Stream2)
+    end;
     
         
 scan_directive(_, Input, Stream) ->

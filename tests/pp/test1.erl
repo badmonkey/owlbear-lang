@@ -7,6 +7,8 @@
 
 version() ->
     {?VERSION, ?major, ?minor}.
+    
+-comment(first, ?MODULE).
 
 -else.
 
