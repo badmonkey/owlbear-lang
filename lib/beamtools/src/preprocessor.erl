@@ -51,7 +51,6 @@
 %
 % filename      :: string()
 % module        :: atom()
-% line          :: integer()
 %
 % scanner       :: type:scanner()
 % split_expr
@@ -147,7 +146,10 @@ process({error, _ErrorInfo, _} = Error, _State) ->
     Error;
     
 process({ok, Tokens, EndLoc}, State ) ->
-    {ok, filter_tokens(Tokens, tokstream:new(?TOKEN_CHUNK, State)), EndLoc}.
+	Stream = tokstream:new(?TOKEN_CHUNK, State),
+	FileAttr = tokens:file_attribute(FileName, {1,1}),
+
+    {ok, filter_tokens(Tokens, tokstream:push_token(Stream, FileAttr)), EndLoc}.
 
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -181,7 +183,7 @@ filter_tokens([?PATTERN_DASH = TokDash, ?PATTERN_ATOM(Directive) = TokName | Res
                                     State = tokstream:get_userdata(Stream),
                                     case maps:is_key(Directive, State#state.directives) of
                                         true    ->
-                                            NewToken = tokstream:make_embed_token(?TOKEN_DIRECTIVE, TokName),
+                                            NewToken = tokens:make_embed(?TOKEN_DIRECTIVE, TokName),
                                             scan_directive(custom, Rest, tokstream:push_many_tokens(Stream, [TokDash, NewToken]))
                                     ;   false   ->
                                             chunk_tokens(Rest, tokstream:push_to_chunk(Stream, [TokDash, TokName]))

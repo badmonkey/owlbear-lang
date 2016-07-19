@@ -2,7 +2,7 @@
 -module(tokens).
 
 -export([ from_term/1, from_expr/1, from_expr/2
-        , set_location/2
+        , set_location/2, file_attribute/2
         , make_embed/2, get_embed_data/2, is_embed/2 ]).
 
 
@@ -44,7 +44,26 @@ set_location(Location, Tokens) when is_list(Tokens) ->
     
 %set_location(Location, {Tag, _, {embed, Data} }) ->
 %    {Tag, Location, {embed, set_location(Location, Data)}}.
+
+
+%%%%% ------------------------------------------------------- %%%%%
+
     
+file_attribute(FileName, {Line,_} = Loc) ->
+    [ {'-', Loc}
+    , {atom, Loc, 'file'}
+    , {'(', Loc}
+    , {string, Loc, FileName}
+    , {',', Loc}
+    , {integer, Loc, Line}
+    , {')', Loc}
+    , {dot, Loc}
+	];
+
+file_attribute(FileName, Line) when is_integer(Line) ->
+	file_attribute(FileName, {Line, 1}).
+
+
 
 %%%%% ------------------------------------------------------- %%%%%
 
