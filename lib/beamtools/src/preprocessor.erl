@@ -1,24 +1,40 @@
 
 -module(preprocessor).
 
--export([ file/1, file/2, process/2 ]).
+-export([ new/1, define_macro/4
+        , file/1, file/2, process/2
+        , format/1 ]).
 
 
 %%%%% ------------------------------------------------------- %%%%%
 
 
--record(pp_state,
-       { scanner                        :: type:scanner()
-       , macros                         :: #{ string() => type:tokens() }
-       , replace_wrapper                :: fun( ( type:tokens() ) -> type:tokens() )
-       , resolver
-       , directives         = []        :: [atom()]
-       , directive_cb       = undefined :: undefined | fun( ( atom(), type:tokens(), #pp_state{} ) -> #pp_state{} )
+-type macro_name() :: string() | {string(), type:cardinal()}.
+-type macro_params() :: constant | [ atom() ].
+-type macro_args() :: constant | [ type:tokens() ].
+-type macro_value() :: type:tokens() | fun( ( string(), type:location(), macro_args() ) -> type:tokens() ).
+
+-type macros_type() :: #{ macro_name() => macro_value() }.
+
+-type directive_cb(S) :: fun( ( atom(), type:tokens(), S ) -> {ok, S} | {consume, S} | {replace, type:tokens(), S} ).
+
+
+-record(state,
+       { scanner        = fun erl_scan:string/2 :: type:scanner()
+       , macros         = #{}                   :: macros_type()
+       , resolver       = fun type:identity/1   :: fun( ( string() ) -> string() )
+       , directives     = #{}                   :: #{ atom() => directive_cb(#state{}) }
+       , split_expr                             :: fun( ( type:tokens() ) -> [type:tokens()] )
+       , options        = #{}                   :: #{ atom() => term() }
        }).
+-opaque state() :: #state{}.
+       
+-export_type([ state/0 ]).       
 
        
--define(TOKEN_CHUNK, 'beamtools$chunkpp').
--define(TOKEN_DIRECTIVE, 'beamtools$directivepp').
+-define(TOKEN_CHUNK, 'beamtools$CHUNK').
+-define(TOKEN_DIRECTIVE, 'beamtools$DIRECTIVE').
+-define(TOKEN_ARG, 'beamtool$arg').
        
 -define(PATTERN_DASH, {'-',_}).    
 -define(PATTERN_QMARK, {'?',_}).
@@ -33,39 +49,99 @@
 %%%%% ------------------------------------------------------- %%%%%
 
 %
-% filename
-% module
-% scanner
+% filename      :: string()
+% module        :: atom()
+% line          :: integer()
 %
+% scanner       :: type:scanner()
+% split_expr
+% directives    :: [atom()]
+% defines       :: [{string(), macro_params(), macro_value()}]
+%
+
+default_directive(_Name, _Tokens, State) ->
+    {ok, State}.
+    
+   
+
+new(#{} = Opts) ->
+    S1 = miscutils:if_valid_then_update( scanner, Opts
+                                       , fun(X) -> is_function(X, 2) end
+                                       , #state.scanner, #state{}),
+                  
+    FileName =  maps:get(filename, Opts, undefined),
+    Module =    maps:get(module, Opts, undefined),
+    
+    S2 =    case {FileName, Module} of
+                {undefined, undefined}  ->
+                    S1
+                    
+            ;   {_, undefined}          ->
+                    NewModule = filename:basename(FileName, filename:extension(FileName)),
+                    define_macros([ {"FILE", constant, tokens:from_term(FileName)}
+                                  , {"MODULE", constant, tokens:from_term(erlang:list_to_atom(NewModule))}
+                                  , {"MODULE_STRING", constant, tokens:from_term(NewModule)}
+                                  ], S1)
+                                  
+            ;   {undefined, _} when is_atom(Module) ->
+                    define_macros([ {"MODULE", constant, tokens:from_term(Module)}
+                                  , {"MODULE_STRING", constant, tokens:from_term(erlang:atom_to_list(Module))}
+                                  ], S1)
+                                  
+            ;   _ when is_atom(Module) ->
+                    define_macros([ {"FILE", constant, tokens:from_term(FileName)}
+                                  , {"MODULE", constant, tokens:from_term(Module)}
+                                  , {"MODULE_STRING", constant, tokens:from_term(erlang:atom_to_list(Module))}
+                                  ], S1)
+            end,
+            
+    S3 = define_macros([ {"LINE", constant, fun macro_line_func/3}
+                       , {"MACHINE", constant, tokens:from_term('BEAM')}
+                       | maps:get(defines, Opts, [])
+                       ], S2),
+
+    S3#state{ directives = #{ module  => fun default_directive/3
+                            , comment => fun default_directive/3
+                            }
+            }.
+
+    
+%%%%% ------------------------------------------------------- %%%%%
+
+
+define_macros(Entries, State) ->
+    State.
+
+
+-spec define_macro( string(), macro_params(), macro_value(), #state{} ) -> #state{}.
+    
+define_macro(Name, Params, Value, #state{ macros = Macros } = State) ->
+    State.
+    
+
+%%%%% ------------------------------------------------------- %%%%%
+
 
 file(FileName) ->
     file( FileName
         , #{ filename => FileName
-           , scanner  => fun erl_scan:string/2
            } ).
            
 
-file(FileName, #{ scanner := Scanner } = Opts) ->
+file(FileName, #{} = Opts) ->
+    file(FileName, new(Opts));
+    
+file(FileName, #state{ scanner = Scanner } = State) ->
     {ok, FileContents} = file:read_file(FileName),
     Data = binary_to_list(FileContents),
     Output = Scanner(Data, {1,1}),
-    process(Output, new(Opts));
+    process(Output, State).
+
     
-file(FileName, #{} = Opts) ->
-    file(FileName, Opts#{ scanner => fun erl_scan:string/2 }).
-
-
 %%%%% ------------------------------------------------------- %%%%%
 
 
-new(#{} = Opts) ->
-    #pp_state{ directives = [module, comment] }.
-    
-
-%%%%% ------------------------------------------------------- %%%%%
-
-
--spec process( type:token_return(), #pp_state{} ) -> type:token_return().
+-spec process( type:token_return(), #state{} ) -> type:token_return().
 
 process({error, _ErrorInfo, _} = Error, _State) ->
     Error;
@@ -73,6 +149,14 @@ process({error, _ErrorInfo, _} = Error, _State) ->
 process({ok, Tokens, EndLoc}, State ) ->
     {ok, filter_tokens(Tokens, tokstream:new(?TOKEN_CHUNK, State)), EndLoc}.
 
+
+%%%%% ------------------------------------------------------- %%%%%
+
+
+-spec format( type:tokens() ) -> string().
+format(X) ->
+    ok.
+    
 
 %%%%% ------------------------------------------------------- %%%%%
 
@@ -95,7 +179,7 @@ filter_tokens([?PATTERN_DASH = TokDash, ?PATTERN_ATOM(Directive) = TokName | Res
                                 true    -> scan_directive(Directive, Rest, tokstream:push_many_tokens(Stream, [TokDash, TokName]))
                             ;   false   ->
                                     State = tokstream:get_userdata(Stream),
-                                    case lists:member(Directive, State#pp_state.directives) of
+                                    case maps:is_key(Directive, State#state.directives) of
                                         true    ->
                                             NewToken = tokstream:make_embed_token(?TOKEN_DIRECTIVE, TokName),
                                             scan_directive(custom, Rest, tokstream:push_many_tokens(Stream, [TokDash, NewToken]))
@@ -245,8 +329,15 @@ chunk_exprs([Hd | Rest], Stream, Depth) ->
 
 
 directives() ->
-    [include, include_lib, define, ifdef, ifndef, undef, else, endif, error, warning, file].
-    
-    
-% implement in phase 2    
-% if, elif    
+    [include, include_lib, define, ifdef, ifndef, undef, else, endif].
+
+
+%%%%% ------------------------------------------------------- %%%%%    
+
+
+-spec macro_line_func( string(), type:location(), macro_args() ) -> type:tokens().
+
+macro_line_func(_, {L, _}, constant)    -> tokens:from_term(L);
+macro_line_func(_, L, constant)         -> tokens:from_term(L).
+
+

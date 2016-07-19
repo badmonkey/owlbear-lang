@@ -2,7 +2,6 @@
 -module(tokstream).
 
 -export([ new/1, new/2
-        , is_embed_token/2, make_embed_token/2, get_embed_data/2
         , push_token/2, push_many_tokens/2, push_to_chunk/2
         , start_chunk/2, end_chunk/1
         , final/1, error/1
@@ -31,37 +30,6 @@
 
 new(Tag) -> #tok_stream{ tag = Tag }.
 new(Tag, UserData) -> #tok_stream{ tag = Tag, userdata = UserData }.
-
-
-%%%%% ------------------------------------------------------- %%%%%
-
-
-make_embed_token(_, []) ->
-    [];
-    
-make_embed_token(Tag, Chunk)
-        when is_atom(Tag), is_list(Chunk) ->    
-    Data = lists:reverse(Chunk),
-    {Tag, element(2, hd(Data)), {embed, Data}};
-    
-make_embed_token(Tag, Data)
-        when is_atom(Tag), is_tuple(Data), tuple_size(Data) =:= 3 ->    
-    {Tag, element(2, Data), {embed, Data}}.
-
-
-
-get_embed_data(Tag, {Tag, _, {embed, Data}}) ->
-    Data;
-
-get_embed_data(_, _) ->
-    undefined.
-
-
-
-is_embed_token(Tag, {Tag, _, {embed, _}}) ->
-    true;
-
-is_embed_token(_, _) -> false.
 
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -111,7 +79,7 @@ end_chunk(#tok_stream{ chunk = [] } = State) ->
     State;
     
 end_chunk(#tok_stream{ tag = Tag, chunk = Chunk, stream = Stream } = State) ->
-    ChunkToken = make_embed_token(Tag, Chunk),
+    ChunkToken = tokens:make_embed(Tag, Chunk),
     State#tok_stream{ stream = [ChunkToken | Stream], chunk = [] }.
 
 

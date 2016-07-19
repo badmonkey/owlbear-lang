@@ -1,6 +1,8 @@
 
 -module(type).
 
+-export([ identity/1 ]).
+
 -export_type([ natural/0, cardinal/0, ordinal/0
              , line/0, column/0, location/0
              , symbol/0, token/0, tokens/0, error_info/0, token_return/0
@@ -22,7 +24,7 @@
 -type symbol() :: atom() | float() | integer() | string().
 -type token() :: {atom(), location()}
                | {atom(), location(), symbol()}
-               | {atom(), location(), {embed, [token()]} }.
+               | {atom(), location(), {embed, token() | [token()]} }.
 -type tokens() :: [token()].
                
 -type error_info() :: {location(), module(), term()}.
@@ -32,5 +34,11 @@
                       
 -type scanner() :: fun( ( string(), location() ) -> token_return() ).
 -type reserved_predicate() :: fun( ( atom() ) -> boolean() ).
+
+
+%%%%% ------------------------------------------------------- %%%%%
+
+
+identity(X) -> X.
 
 

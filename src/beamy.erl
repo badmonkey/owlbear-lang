@@ -26,17 +26,17 @@ pp_process_file(FileName, TokFmt) ->
                             ;  ({Type, {L,_}}, _) ->
                                 io:format("~n~p ", [Type]), L
                                 
-                            ;  ({'beamtools$chunkpp', {L,_}, {embed, _Data}}, L) ->
+                            ;  ({'beamtools$CHUNK', {L,_}, {embed, _Data}}, L) ->
                                 io:format("CHUNK "), L
                                 
-                            ;  ({'beamtools$chunkpp', {L,_}, {embed, _Data}}, _) ->
+                            ;  ({'beamtools$CHUNK', {L,_}, {embed, _Data}}, _) ->
                                 io:format("~nCHUNK "), L
                                 
-                            ;   ({'beamtools$directivepp', {L,_}, {embed, Data}}, L) ->
+                            ;   ({'beamtools$DIRECTIVE', {L,_}, {embed, Data}}, L) ->
                                 {_, {_,_}, Directive} = Data,
                                 io:format("USER<~p> ", [Directive]), L
                                 
-                            ;   ({'beamtools$directivepp', {L,_}, {embed, Data}}, _) ->
+                            ;   ({'beamtools$DIRECTIVE', {L,_}, {embed, Data}}, _) ->
                                 {_, {_,_}, Directive} = Data,
                                 io:format("~nUSER<~p> ", [Directive]), L
                                 
