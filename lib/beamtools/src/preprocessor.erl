@@ -1,9 +1,10 @@
 
 -module(preprocessor).
 
--export([ new/1, define_macro/4
-        , file/1, file/2, process/2
-        , format/1 ]).
+-export([ new/2, new/3, define_macro/4
+        , file/1, file/2, file/3, process/2
+        , format/1, split_balanced_pairs/1
+        , get_filename/1, get_module/1 ]).
 
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -16,11 +17,13 @@
 
 -type macros_type() :: #{ macro_name() => macro_value() }.
 
--type directive_cb(S) :: fun( ( atom(), type:tokens(), S ) -> {ok, S} | {consume, S} | {replace, type:tokens(), S} ).
+-type directive_cb(S) :: fun( ( atom(), type:location(), macro_args(), S ) -> {ok, S} | {replace, type:tokens(), S} ).
 
 
 -record(state,
        { scanner        = fun erl_scan:string/2 :: type:scanner()
+       , filestack      = []                    :: [string()]
+       , module                                 :: atom()
        , macros         = #{}                   :: macros_type()
        , resolver       = fun type:identity/1   :: fun( ( string() ) -> string() )
        , directives     = #{}                   :: #{ atom() => directive_cb(#state{}) }
@@ -34,6 +37,7 @@
        
 -define(TOKEN_CHUNK, 'beamtools$CHUNK').
 -define(TOKEN_DIRECTIVE, 'beamtools$DIRECTIVE').
+-define(TOKEN_STASH, 'beamtools$STASH').
 -define(TOKEN_ARG, 'beamtool$arg').
        
 -define(PATTERN_DASH, {'-',_}).    
@@ -49,67 +53,55 @@
 %%%%% ------------------------------------------------------- %%%%%
 
 %
-% filename      :: string()
-% module        :: atom()
-%
 % scanner       :: type:scanner()
 % split_expr
 % directives    :: [atom()]
 % defines       :: [{string(), macro_params(), macro_value()}]
 %
 
-default_directive(_Name, _Tokens, State) ->
+default_directive(_Name, _Loc, _Args, State) ->
     {ok, State}.
     
-   
 
-new(#{} = Opts) ->
+new(undefined, #{} = Opts) ->
+    new("<unknown>", mk_module_name(), Opts);
+
+new(FileName, #{} = Opts) ->
+    NewModule = filename:basename(FileName, filename:extension(FileName))
+    new(FileName, Module, Opts);   
+    
+new(FileName, Module, #{} = Opts)
+        when is_list(FileName), is_atom(Module)  ->    
+    S0 = #state{ filename = [FileName], module = Module },
+    
     S1 = miscutils:if_valid_then_update( scanner, Opts
                                        , fun(X) -> is_function(X, 2) end
-                                       , #state.scanner, #state{}),
-                  
-    FileName =  maps:get(filename, Opts, undefined),
-    Module =    maps:get(module, Opts, undefined),
-    
-    S2 =    case {FileName, Module} of
-                {undefined, undefined}  ->
-                    S1
-                    
-            ;   {_, undefined}          ->
-                    NewModule = filename:basename(FileName, filename:extension(FileName)),
-                    define_macros([ {"FILE", constant, tokens:from_term(FileName)}
-                                  , {"MODULE", constant, tokens:from_term(erlang:list_to_atom(NewModule))}
-                                  , {"MODULE_STRING", constant, tokens:from_term(NewModule)}
-                                  ], S1)
-                                  
-            ;   {undefined, _} when is_atom(Module) ->
-                    define_macros([ {"MODULE", constant, tokens:from_term(Module)}
-                                  , {"MODULE_STRING", constant, tokens:from_term(erlang:atom_to_list(Module))}
-                                  ], S1)
-                                  
-            ;   _ when is_atom(Module) ->
-                    define_macros([ {"FILE", constant, tokens:from_term(FileName)}
-                                  , {"MODULE", constant, tokens:from_term(Module)}
-                                  , {"MODULE_STRING", constant, tokens:from_term(erlang:atom_to_list(Module))}
-                                  ], S1)
-            end,
-            
-    S3 = define_macros([ {"LINE", constant, fun macro_line_func/3}
+                                       , #state.scanner, S0),
+                                       
+    S2 = define_macros([ {"FILE", constant, tokens:from_term(FileName)}
+                       , {"MODULE", constant, tokens:from_term(Module)}
+                       , {"MODULE_STRING", constant, tokens:from_term(erlang:atom_to_list(Module))}
+                       , {"LINE", constant, fun macro_line_func/3}
                        , {"MACHINE", constant, tokens:from_term('BEAM')}
                        | maps:get(defines, Opts, [])
-                       ], S2),
-
-    S3#state{ directives = #{ module  => fun default_directive/3
-                            , comment => fun default_directive/3
-                            }
-            }.
+                       ], S1),
+                       
+    S2#state{
+        directives = #{ module  => fun default_directive/3
+                      , comment => fun default_directive/3
+                      }
+    }.
 
     
 %%%%% ------------------------------------------------------- %%%%%
 
 
-define_macros(Entries, State) ->
-    State.
+define_macros([], State) ->
+    State;
+    
+define_macros([{N, P, V} | Tail], State) ->
+    NewState = define_macro(N, P, V, State),
+    define_macros(Tail, NewState).
 
 
 -spec define_macro( string(), macro_params(), macro_value(), #state{} ) -> #state{}.
@@ -121,21 +113,27 @@ define_macro(Name, Params, Value, #state{ macros = Macros } = State) ->
 %%%%% ------------------------------------------------------- %%%%%
 
 
-file(FileName) ->
-    file( FileName
-        , #{ filename => FileName
-           } ).
-           
+file(FileName) -> file(FileName, #{}).
 
-file(FileName, #{} = Opts) ->
-    file(FileName, new(Opts));
+file(FileName, #{} = Opts) ->  
+    NewModule = filename:basename(FileName, filename:extension(FileName)),
+    file(FileName, Module, Opts);
+
+file(FileName, #state{} = State) ->
+    S2 = define_macro("FILE", constant, tokens:from_term(FileName), State),
+    process_file( push_filename(FileName, S2) ).
     
-file(FileName, #state{ scanner = Scanner } = State) ->
-    {ok, FileContents} = file:read_file(FileName),
+    
+file(FileName, Module, #{} = Opts) ->
+    process_file( new(FileName, Module, Opts) ).
+    
+    
+process_file(#state{ scanner = Scanner } = State) ->
+    {ok, FileContents} = file:read_file( get_filename(State) ),
     Data = binary_to_list(FileContents),
     Output = Scanner(Data, {1,1}),
     process(Output, State).
-
+        
     
 %%%%% ------------------------------------------------------- %%%%%
 
@@ -145,11 +143,16 @@ file(FileName, #state{ scanner = Scanner } = State) ->
 process({error, _ErrorInfo, _} = Error, _State) ->
     Error;
     
-process({ok, Tokens, EndLoc}, State ) ->
-	Stream = tokstream:new(?TOKEN_CHUNK, State),
-	FileAttr = tokens:file_attribute(FileName, {1,1}),
+process({ok, Tokens, EndLoc}, #state{} = State) ->
+    Stream = tokstream:new(?TOKEN_CHUNK, State),
+    FileAttr = tokens:file_attribute(get_filename(State), {1,1}),
+    
+    Filtered = filter_tokens(Tokens, tokstream:push_token(Stream, FileAttr)),
+    
+    % Parse
+    % unchunk
 
-    {ok, filter_tokens(Tokens, tokstream:push_token(Stream, FileAttr)), EndLoc}.
+    {ok, Filtered, EndLoc}.
 
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -343,3 +346,25 @@ macro_line_func(_, {L, _}, constant)    -> tokens:from_term(L);
 macro_line_func(_, L, constant)         -> tokens:from_term(L).
 
 
+%%%%% ------------------------------------------------------- %%%%%    
+
+
+get_filename(#state{ filestack = [] }) -> [];
+get_filename(#state{ filestack = [H | _] }) -> H.
+
+get_module(#state{ module = M }) -> M.
+
+
+push_filename(FileName, #state{ filestack = FS }) ->
+    #state{ filestack = [FileName | FS] }.
+    
+pop_filename(#state{ filestack = [] } = S) -> S;
+pop_filename(#state{ filestack = [_ | T] } = S) ->
+    #state{ filestack = T }.
+    
+
+%%%%% ------------------------------------------------------- %%%%%    
+
+
+mk_module_name() ->
+    erlang:string_to_atom( io_lib:format("unamed-~i", [erlang:unique_integer([positive])]) ).

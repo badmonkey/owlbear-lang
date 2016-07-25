@@ -338,10 +338,6 @@ record$set(Project, owner,
         record$set(Project.owner.address, city, "Boston") ) )
 
         
-        
-protocols
-
-
 
 interface Monad
     bind()  -> X
@@ -350,7 +346,71 @@ end
 
 
 
+baron$Application.Module
+baron$Application.Module/Protocol
 
+Appl std
+module enum
+  protocol enumerable
+  end
+end
+
+baron.std.enum.beam
+baron.std.enum#enumerable.beam
+
+
+protocol enumerable
+    -callback count( enumerable() ) -> {ok, non_neg_integer()} | {error, module()}.
+    -callback member( enumerable(), term() ) -> {ok, boolean} | {error, module()}.
+    -callback reduce( term(), acc(), reducer() ) -> result().
+end
+
+implement enumerable for list() with
+
+    reduce(_,       {halt, Acc}, _Fun)      -> {halted, Acc}
+    ;     (List,    {suspend, Acc}, Fun)    -> {suspended, Acc, fun reduce(List, &1, Fun)/1 }
+    ;     ([],      {cont, Acc}, _Fun)      -> {done, Acc}
+    ;     ([H | T], {cont, Acc}, Fun)       -> reduce(T, Fun(H, Acc), Fun)
+    end
+
+end
+
+
+enum:map(Enum, Fun) ->
+    Reducer = fun(X, Acc) -> {cont, [Fun(X) | Acc]} end,
+    enumerable.reduce(Enum, {cont, []}, Reducer)
+        |> fun element(&1, 2)/1
+        |> fun lists.reverse
+end
+
+enum:all(Enum, Fun) when is_function(Fun, 1) ->
+    enumerable.reduce( Enum, {cont, true}
+                     , fun(Entry, _) ->
+                            if
+                                Fun(Entry)  -> {cont, true}
+                            else
+                                {halt, false}
+                            end
+                       end)
+        |> fun({_, X}) -> X end
+end
+
+enum:count(Enum) ->
+    case enumerable.count(Enum) of
+        {ok, Value} when is_integer(Value) -> Value
+        
+    ;   {error, Module} ->
+            Module:reduce( Enum, {cont, 0}
+                         , fun(_, Acc) -> {cont, Acc + 1} end)
+                |> fun element(&1, 2)/1
+    end
+  end
+
+  
+protocol mutatable extends enumerable
+end
+  
+  
 -----------------------------------------------------------------------------------
 
 minmax(_, [])           -> undefined
