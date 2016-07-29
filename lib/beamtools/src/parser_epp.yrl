@@ -1,3 +1,4 @@
+
 % Alternative Erlang preprocessor
 
 Nonterminals
@@ -114,6 +115,10 @@ MacroName -> var                                    : '$1'.
      
 MacroArgs -> var                                    : ['$1'].
 MacroArgs -> MacroArgs ',' var                      : '$1' ++ ['$3'].
+
+
+
+Erlang code.
 
 
 

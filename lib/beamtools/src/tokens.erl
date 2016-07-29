@@ -3,7 +3,8 @@
 
 -export([ from_term/1, from_expr/1, from_expr/2
         , set_location/2, file_attribute/2
-        , make_embed/2, get_embed_data/2, is_embed/2 ]).
+        , make_embed/2, get_embed_data/2, is_embed/2
+		, get_type/1, get_location/1, get_value/1, has_value/1]).
 
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -86,18 +87,44 @@ make_embed(Tag, Data)
 
 -spec get_embed_data( atom(), type:token() ) -> type:token() | type:tokens().
     
-get_embed_data(Tag, {Tag, _, {embed, Data}}) ->
-    Data;
-
-get_embed_data(_, _) ->
-    undefined.
+get_embed_data(Tag, {Tag, _, {embed, Data}}) -> Data;
+get_embed_data(_, _) -> undefined.
 
 
 
 -spec is_embed( atom(), type:token() ) -> boolean().
     
-is_embed(Tag, {Tag, _, {embed, _}}) ->
-    true;
+is_embed(any, {_, _, {embed, _}}) 	-> true;
+is_embed(Tag, {Tag, _, {embed, _}})	-> true;
+is_embed(_, _) 						-> false.
 
-is_embed(_, _) -> false.
+
+%%%%% ------------------------------------------------------- %%%%%
+
+
+-spec get_type( type:token() ) -> atom().
+
+get_type({Tag, _}) -> Tag;
+get_type({Tag, _, _ }) -> Tag;
+get_type(_) -> undefined.
+
+
+-spec get_location( type:token() ) -> type:location().
+
+get_location({_, Loc}) -> Loc;
+get_location({_, Loc, _}) -> Loc;
+get_location(_) -> undefined.
+	
+
+-spec get_value( type:token() ) -> type:symbol().
+
+get_value({_, _, Val}) -> Val;
+get_value(_) -> undefined.
+
+
+-spec has_value( type:token() ) -> boolean().
+
+has_value({_, _, _}) -> true;
+has_value(_) -> false.
+
 

@@ -347,7 +347,7 @@ end
 
 
 baron$Application.Module
-baron$Application.Module/Protocol
+baron$Application.Module$Protocol
 
 Appl std
 module enum
@@ -355,8 +355,10 @@ module enum
   end
 end
 
-baron.std.enum.beam
-baron.std.enum#enumerable.beam
+baron$std.enum.beam
+baron$std.enum$enumerable.beam
+baron.std.enum.enumerable.beam
+
 
 
 protocol enumerable
@@ -366,6 +368,14 @@ protocol enumerable
 end
 
 implement enumerable for list() with
+
+    count(L) -> 
+        length(L)
+    end
+
+    member(L, I) ->
+        lists:ismemeber(I, L)
+    end
 
     reduce(_,       {halt, Acc}, _Fun)      -> {halted, Acc}
     ;     (List,    {suspend, Acc}, Fun)    -> {suspended, Acc, fun reduce(List, &1, Fun)/1 }

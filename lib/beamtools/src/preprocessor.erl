@@ -3,7 +3,7 @@
 
 -export([ new/2, new/3, define_macro/4
         , file/1, file/2, file/3, process/2
-        , format/1, split_balanced_pairs/1
+        , format/1, split_token_expr/1
         , get_filename/1, get_module/1 ]).
 
 
@@ -21,14 +21,14 @@
 
 
 -record(state,
-       { scanner        = fun erl_scan:string/2 :: type:scanner()
-       , filestack      = []                    :: [string()]
-       , module                                 :: atom()
-       , macros         = #{}                   :: macros_type()
-       , resolver       = fun type:identity/1   :: fun( ( string() ) -> string() )
-       , directives     = #{}                   :: #{ atom() => directive_cb(#state{}) }
-       , split_expr                             :: fun( ( type:tokens() ) -> [type:tokens()] )
-       , options        = #{}                   :: #{ atom() => term() }
+       { scanner        = fun erl_scan:string/2 	:: type:scanner()
+       , filestack      = []                    	:: [string()]
+       , module         = undefined                	:: atom()
+       , macros         = #{}                   	:: macros_type()
+       , resolver       = fun type:identity/1   	:: fun( ( string() ) -> string() )
+       , directives     = #{}                   	:: #{ atom() => directive_cb(#state{}) }
+       , split_expr     = fun split_token_expr/1	:: fun( ( type:tokens() ) -> [type:tokens()] )
+       , options        = #{}                   	:: #{ atom() => term() }
        }).
 -opaque state() :: #state{}.
        
@@ -48,6 +48,10 @@
 -define(PATTERN_DOT, {dot,_}).
 -define(PATTERN_ATOM(X), {atom,_,X}).
 -define(PATTERN_VAR(X), {var,_,X}).
+-define(PATTERN_LCURL, {'{',_}).
+-define(PATTERN_RCURL, {'}',_}).
+-define(PATTERN_LSQR, {'[',_}).
+-define(PATTERN_RSQR, {']',_}).
        
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -67,12 +71,13 @@ new(undefined, #{} = Opts) ->
     new("<unknown>", mk_module_name(), Opts);
 
 new(FileName, #{} = Opts) ->
-    NewModule = filename:basename(FileName, filename:extension(FileName))
-    new(FileName, Module, Opts);   
+    Module = filename:basename(FileName, filename:extension(FileName)),
+    new(FileName, Module, Opts).
+   
     
 new(FileName, Module, #{} = Opts)
         when is_list(FileName), is_atom(Module)  ->    
-    S0 = #state{ filename = [FileName], module = Module },
+    S0 = #state{ filestack = [FileName], module = Module },
     
     S1 = miscutils:if_valid_then_update( scanner, Opts
                                        , fun(X) -> is_function(X, 2) end
@@ -87,8 +92,8 @@ new(FileName, Module, #{} = Opts)
                        ], S1),
                        
     S2#state{
-        directives = #{ module  => fun default_directive/3
-                      , comment => fun default_directive/3
+        directives = #{ module  => fun default_directive/4
+                      , comment => fun default_directive/4
                       }
     }.
 
@@ -116,7 +121,7 @@ define_macro(Name, Params, Value, #state{ macros = Macros } = State) ->
 file(FileName) -> file(FileName, #{}).
 
 file(FileName, #{} = Opts) ->  
-    NewModule = filename:basename(FileName, filename:extension(FileName)),
+    Module = filename:basename(FileName, filename:extension(FileName)),
     file(FileName, Module, Opts);
 
 file(FileName, #state{} = State) ->
@@ -355,12 +360,12 @@ get_filename(#state{ filestack = [H | _] }) -> H.
 get_module(#state{ module = M }) -> M.
 
 
-push_filename(FileName, #state{ filestack = FS }) ->
-    #state{ filestack = [FileName | FS] }.
+push_filename(FileName, #state{ filestack = FS } = S) ->
+    S#state{ filestack = [FileName | FS] }.
     
 pop_filename(#state{ filestack = [] } = S) -> S;
 pop_filename(#state{ filestack = [_ | T] } = S) ->
-    #state{ filestack = T }.
+    S#state{ filestack = T }.
     
 
 %%%%% ------------------------------------------------------- %%%%%    
@@ -368,3 +373,60 @@ pop_filename(#state{ filestack = [_ | T] } = S) ->
 
 mk_module_name() ->
     erlang:string_to_atom( io_lib:format("unamed-~i", [erlang:unique_integer([positive])]) ).
+
+
+%%%%% ------------------------------------------------------- %%%%%    
+
+
+-spec split_token_expr( type:tokens() ) -> [type:tokens()].
+
+split_token_expr(Tokens) ->
+	Stream = split_exprs(Tokens, tokstream:new(?TOKEN_CHUNK), {0,0,0}),
+	SplitTokens = tokstream:final(Stream),
+	[ tokens:get_embed_data(?TOKEN_CHUNK, X) || X <- SplitTokens ].
+
+
+split_exprs([], Stream, {0, 0, 0}) ->
+    tokstream:end_chunk(Stream);
+
+split_exprs([], Stream, _Depths) ->
+    tokstream:error(Stream);  % @todo error message
+
+
+split_exprs([?PATTERN_LBRACKET = TokLeft | Rest], Stream, {Bra, Curl, Sqr}) ->
+    split_exprs(Rest, tokstream:push_to_chunk(Stream, TokLeft), {Bra + 1, Curl, Sqr});
+
+split_exprs([?PATTERN_LCURL = TokLeft | Rest], Stream, {Bra, Curl, Sqr}) ->
+    split_exprs(Rest, tokstream:push_to_chunk(Stream, TokLeft), {Bra, Curl + 1, Sqr});
+
+split_exprs([?PATTERN_LSQR = TokLeft | Rest], Stream, {Bra, Curl, Sqr}) ->
+    split_exprs(Rest, tokstream:push_to_chunk(Stream, TokLeft), {Bra , Curl, Sqr + 1});
+
+
+split_exprs([?PATTERN_RBRACKET | _Rest], Stream, {0, _, _}) ->
+	tokstream:error(Stream); 	% @todo another error message
+
+split_exprs([?PATTERN_RBRACKET = TokRight | Rest], Stream, {Bra, Curl, Sqr}) ->
+    split_exprs(Rest, tokstream:push_to_chunk(Stream, TokRight), {Bra - 1, Curl, Sqr});
+
+split_exprs([?PATTERN_RCURL | _Rest], Stream, {_, 0, _}) ->
+	tokstream:error(Stream); 	% @todo another error message
+
+split_exprs([?PATTERN_RCURL = TokRight | Rest], Stream, {Bra, Curl, Sqr}) ->
+    split_exprs(Rest, tokstream:push_to_chunk(Stream, TokRight), {Bra, Curl - 1, Sqr});
+
+split_exprs([?PATTERN_RSQR | _Rest], Stream, {_, _, 0}) ->
+	tokstream:error(Stream); 	% @todo another error message
+
+split_exprs([?PATTERN_RSQR = TokRight | Rest], Stream, {Bra, Curl, Sqr}) ->
+    split_exprs(Rest, tokstream:push_to_chunk(Stream, TokRight), {Bra, Curl, Sqr - 1});
+
+
+split_exprs([?PATTERN_COMMA | Rest], Stream, {0, 0, 0} = Depth) ->
+	split_exprs(Rest, tokstream:end_chunk(Stream), Depth);
+
+
+split_exprs([Hd | Rest], Stream, Depths) ->
+    split_exprs(Rest, tokstream:push_to_chunk(Stream, Hd), Depths).
+
+
