@@ -79,7 +79,7 @@ end_chunk(#tok_stream{ chunk = [] } = State) ->
     State;
     
 end_chunk(#tok_stream{ tag = Tag, chunk = Chunk, stream = Stream } = State) ->
-    ChunkToken = tokens:make_embed(Tag, Chunk),
+    ChunkToken = tokens:make_embed(Tag, lists:reverse(Chunk)),
     State#tok_stream{ stream = [ChunkToken | Stream], chunk = [] }.
 
 

@@ -41,11 +41,11 @@ pp_process_file(FileName, TokFmt) ->
                                 {_, {_,_}, Directive} = Data,
                                 io:format("~nUSER<~p> ", [Directive]), L
                                 
-                            ;  ({_, {L,_}, Data}, L) ->
-                                io:format("~p ", [Data]), L
+                            ;  ({Type, {L,_}, Data}, L) ->
+                                io:format("~p[~p] ", [Type, Data]), L
                                 
-                            ;  ({_, {L,_}, Data}, _) ->
-                                io:format("~n~p ", [Data]), L
+                            ;  ({Type, {L,_}, Data}, _) ->
+                                io:format("~n~p[~p] ", [Type, Data]), L
                             end, 0, Tokens),
                             io:format("~n~n")
                     

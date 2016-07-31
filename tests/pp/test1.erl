@@ -12,7 +12,7 @@ version() ->
 
 -else.
 
--define(TEST(X), ??X).
+%-define(TEST(X), ??X).
 
 version() ->
     ?ADVVERSION( abc
@@ -24,4 +24,4 @@ version() ->
 
 -endif.
 
--define(FIN,"fin").
+%-define(FIN,"fin").

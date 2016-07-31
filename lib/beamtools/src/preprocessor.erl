@@ -21,14 +21,16 @@
 
 
 -record(state,
-       { scanner        = fun erl_scan:string/2 	:: type:scanner()
-       , filestack      = []                    	:: [string()]
-       , module         = undefined                	:: atom()
-       , macros         = #{}                   	:: macros_type()
-       , resolver       = fun type:identity/1   	:: fun( ( string() ) -> string() )
-       , directives     = #{}                   	:: #{ atom() => directive_cb(#state{}) }
-       , split_expr     = fun split_token_expr/1	:: fun( ( type:tokens() ) -> [type:tokens()] )
-       , options        = #{}                   	:: #{ atom() => term() }
+       { scanner        = fun erl_scan:string/2     :: type:scanner()
+       , filestack      = []                        :: [string()]
+       , module         = undefined                 :: atom()
+       , identifier     = fun default_identifier/1  :: fun( ( type:token() ) -> boolean() )
+       , resolver       = fun type:identity/1       :: fun( ( string() ) -> string() )
+       , split_expr     = fun split_token_expr/1    :: fun( ( type:tokens() ) -> [type:tokens()] )
+       , directives     = #{}                       :: #{ atom() => directive_cb(#state{}) }
+       , options        = #{}                       :: #{ atom() => term() }
+       
+       , macros         = #{}                       :: macros_type()
        }).
 -opaque state() :: #state{}.
        
@@ -36,18 +38,16 @@
 
        
 -define(TOKEN_CHUNK, 'beamtools$CHUNK').
--define(TOKEN_DIRECTIVE, 'beamtools$DIRECTIVE').
--define(TOKEN_STASH, 'beamtools$STASH').
+-define(TOKEN_RAW, 'beamtools$RAW').
 -define(TOKEN_ARG, 'beamtool$arg').
        
 -define(PATTERN_DASH, {'-',_}).    
 -define(PATTERN_QMARK, {'?',_}).
 -define(PATTERN_LBRACKET, {'(',_}).
 -define(PATTERN_RBRACKET, {')',_}).
--define(PATTERN_COMMA, {',',_}).
 -define(PATTERN_DOT, {dot,_}).
--define(PATTERN_ATOM(X), {atom,_,X}).
--define(PATTERN_VAR(X), {var,_,X}).
+
+-define(PATTERN_COMMA, {',',_}).
 -define(PATTERN_LCURL, {'{',_}).
 -define(PATTERN_RCURL, {'}',_}).
 -define(PATTERN_LSQR, {'[',_}).
@@ -65,6 +65,10 @@
 
 default_directive(_Name, _Loc, _Args, State) ->
     {ok, State}.
+    
+default_identifier({atom,_,_}) -> true;
+default_identifier({var,_,_}) -> true;
+default_identifier(_) -> false.
     
 
 new(undefined, #{} = Opts) ->
@@ -122,14 +126,14 @@ file(FileName) -> file(FileName, #{}).
 
 file(FileName, #{} = Opts) ->  
     Module = filename:basename(FileName, filename:extension(FileName)),
-    file(FileName, Module, Opts);
+    file(FileName, erlang:list_to_atom(Module), Opts);
 
 file(FileName, #state{} = State) ->
     S2 = define_macro("FILE", constant, tokens:from_term(FileName), State),
     process_file( push_filename(FileName, S2) ).
     
     
-file(FileName, Module, #{} = Opts) ->
+file(FileName, Module, #{} = Opts) when is_atom(Module) ->
     process_file( new(FileName, Module, Opts) ).
     
     
@@ -152,11 +156,19 @@ process({ok, Tokens, EndLoc}, #state{} = State) ->
     Stream = tokstream:new(?TOKEN_CHUNK, State),
     FileAttr = tokens:file_attribute(get_filename(State), {1,1}),
     
-    Filtered = filter_tokens(Tokens, tokstream:push_token(Stream, FileAttr)),
+    Stream2 = tokstream:start_chunk(Stream, FileAttr),
+    Filtered = filter_tokens(Tokens, tokstream:end_chunk(Stream2)),
     
-    % Parse
-    % unchunk
-
+    {ok, Tree} = parser_epp:parse(Filtered),
+    io:format("~p~n~n", [Tree]),
+    
+    NewTokens = parser_epp:evaluate(Tree, State),
+    io:format("~n----------------~n"),
+    io:format("~p", [NewTokens]),
+    io:format("~n----------------~n"),
+    io:format("~s", [ tokens:to_code(lists:flatten(NewTokens)) ]),
+    io:format("~n----------------~n"),
+    
     {ok, Filtered, EndLoc}.
 
 
@@ -176,28 +188,49 @@ format(X) ->
 filter_tokens([], Stream) ->
     tokstream:final(Stream);
 
-filter_tokens([?PATTERN_QMARK = TokQMark, ?PATTERN_ATOM(_) = TokName | Rest], Stream) ->
-    {RestInput, Stream2} = scan_macro_use(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokName])),
-    filter_tokens(RestInput, Stream2);
-    
-filter_tokens([?PATTERN_QMARK = TokQMark, ?PATTERN_VAR(_) = TokName | Rest], Stream) ->
-    {RestInput, Stream2} = scan_macro_use(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokName])),
-    filter_tokens(RestInput, Stream2);
-
-filter_tokens([?PATTERN_DASH = TokDash, ?PATTERN_ATOM(Directive) = TokName | Rest], Stream) ->
-    {RestInput, Stream2} =  case lists:member(Directive, directives()) of
-                                true    -> scan_directive(Directive, Rest, tokstream:push_many_tokens(Stream, [TokDash, TokName]))
+filter_tokens([?PATTERN_QMARK = TokQMark, TokName | Rest], Stream) ->
+    State = tokstream:get_userdata(Stream),
+    IsIdentifier = State#state.identifier,
+    {RestInput, Stream2} =  case IsIdentifier(TokName) of
+                                true    ->
+                                    TokIdent = tokens:change_type(identifier, TokName),
+                                    scan_macro_use(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokIdent]))
+                                    
                             ;   false   ->
-                                    State = tokstream:get_userdata(Stream),
-                                    case maps:is_key(Directive, State#state.directives) of
-                                        true    ->
-                                            NewToken = tokens:make_embed(?TOKEN_DIRECTIVE, TokName),
-                                            scan_directive(custom, Rest, tokstream:push_many_tokens(Stream, [TokDash, NewToken]))
-                                    ;   false   ->
-                                            chunk_tokens(Rest, tokstream:push_to_chunk(Stream, [TokDash, TokName]))
-                                    end
+                                    chunk_tokens(Rest, tokstream:push_to_chunk(Stream, [TokQMark, TokName]))
                             end,
     filter_tokens(RestInput, Stream2);
+
+
+filter_tokens([?PATTERN_DASH = TokDash, TokName | Rest], Stream) ->
+    State = tokstream:get_userdata(Stream),
+    IsIdentifier = State#state.identifier,
+    {R2, S2} =  case IsIdentifier(TokName) of
+                    true    ->
+                        Directive = tokens:get_value(TokName),
+                        TokKeyword = {keyword(Directive), tokens:get_location(TokName)},
+                        
+                        case lists:member(Directive, directives()) of
+                            true    ->
+                                scan_directive(Directive, Rest, tokstream:push_many_tokens(Stream, [TokKeyword]))
+                            
+                        ;   false   ->
+                                case maps:is_key(Directive, State#state.directives) of
+                                    true    ->
+                                        TokIdent = tokens:change_type(identifier, TokName),
+                                        TokRaw = tokens:make_embed(?TOKEN_RAW, TokName),
+                                        scan_directive(custom, Rest, tokstream:push_many_tokens(Stream, [TokDash, TokIdent, TokRaw]))
+                                        
+                                ;   false   ->
+                                        chunk_tokens(Rest, tokstream:push_to_chunk(Stream, [TokDash, TokName]))
+                                end
+                        end
+
+                ;   false   ->
+                        chunk_tokens(Rest, tokstream:push_to_chunk(Stream, [TokDash, TokName]))
+                end,
+    filter_tokens(R2, S2);
+   
 
 filter_tokens(Input, Stream) ->
     {RestInput, Stream2} = chunk_tokens(Input, Stream),
@@ -267,14 +300,20 @@ scan_directive(_, Input, Stream) ->
     chunk_tokens(Input, Stream).     % likely force an error in the next stage
     
     
-match_macro_name([?PATTERN_LBRACKET = TokLeft, ?PATTERN_ATOM(_) = TokName, ?PATTERN_RBRACKET = TokRight, ?PATTERN_DOT = TokDot | Rest], Stream) ->
-    {Rest, tokstream:push_many_tokens(Stream, [TokLeft, TokName, TokRight, TokDot])};
-    
-match_macro_name([?PATTERN_LBRACKET = TokLeft, ?PATTERN_VAR(_) = TokName, ?PATTERN_RBRACKET = TokRight, ?PATTERN_DOT = TokDot | Rest], Stream) ->
-    {Rest, tokstream:push_many_tokens(Stream, [TokLeft, TokName, TokRight, TokDot])};
-    
+match_macro_name([?PATTERN_LBRACKET = TokLeft, TokName, ?PATTERN_RBRACKET = TokRight, ?PATTERN_DOT = TokDot | Rest], Stream) ->
+    State = tokstream:get_userdata(Stream),
+    IsIdentifier = State#state.identifier,
+    case IsIdentifier(TokName) of
+        true    ->
+            TokIdent = tokens:change_type(identifier, TokName),
+            {Rest, tokstream:push_many_tokens(Stream, [TokLeft, TokIdent, TokRight, TokDot])}
+            
+    ;   false   ->
+            chunk_tokens(Rest, Stream)      %% @todo error
+    end;
+
 match_macro_name(Input, Stream) ->
-    chunk_tokens(Input, Stream).    %% @todo not sure, force in parser?
+    chunk_tokens(Input, Stream).            %% @todo error
 
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -283,14 +322,21 @@ match_macro_name(Input, Stream) ->
 chunk_tokens([], Stream) ->
     {[], tokstream:end_chunk(Stream)};
     
-chunk_tokens([?PATTERN_QMARK, ?PATTERN_ATOM(_) | _Rest] = Input, Stream) ->
-    {Input, tokstream:end_chunk(Stream)};
+chunk_tokens([?PATTERN_QMARK = TokQMark, TokName | Rest] = Input, Stream) ->
+    State = tokstream:get_userdata(Stream),
+    IsIdentifier = State#state.identifier,
+    case IsIdentifier(TokName) of
+        true    -> {Input, tokstream:end_chunk(Stream)}
+    ;   false   -> chunk_tokens(Rest, tokstream:push_to_chunk(Stream, [TokQMark, TokName]))
+    end;
     
-chunk_tokens([?PATTERN_QMARK, ?PATTERN_VAR(_) | _Rest] = Input, Stream) ->
-    {Input, tokstream:end_chunk(Stream)};
-    
-chunk_tokens([?PATTERN_DASH, ?PATTERN_ATOM(_) | _Rest] = Input, Stream) ->
-    {Input, Stream};
+chunk_tokens([?PATTERN_DASH = TokDash, TokName | Rest] = Input, Stream) ->
+    State = tokstream:get_userdata(Stream),
+    IsIdentifier = State#state.identifier,
+    case IsIdentifier(TokName) of
+        true    -> {Input, Stream}                  % Don't end chunk
+    ;   false   -> chunk_tokens(Rest, tokstream:push_to_chunk(Stream, [TokDash, TokName]))
+    end;
 
     
 chunk_tokens([Hd | Rest], Stream) ->
@@ -316,23 +362,37 @@ chunk_exprs([?PATTERN_RBRACKET | _Rest] = Input, Stream, 0) ->
 chunk_exprs([?PATTERN_RBRACKET = TokRight | Rest], Stream, Depth) ->
     chunk_exprs(Rest, tokstream:push_to_chunk(Stream, TokRight), Depth - 1);
 
-
-chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_ATOM(_) = TokName | Rest], Stream, Depth) ->
-    {RestInput, Stream2} = scan_macro_use(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokName])),
-    chunk_exprs(RestInput, Stream2, Depth);
     
-chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_VAR(_) = TokName | Rest], Stream, Depth) ->
-    {RestInput, Stream2} = scan_macro_use(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokName])),
-    chunk_exprs(RestInput, Stream2, Depth);
+chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_QMARK = TokQMark2, TokName | Rest], Stream, Depth) ->
+    State = tokstream:get_userdata(Stream),
+    IsIdentifier = State#state.identifier,
+    S2 =    case IsIdentifier(TokName) of
+                true    ->
+                    TokIdent = tokens:change_type(identifier, TokName),
+                    tokstream:push_many_tokens(Stream, [TokQMark, TokQMark2, TokIdent])
+                    
+            ;   false   ->
+                    tokstream:push_to_chunk(Stream, [TokQMark, TokQMark2, TokName])
+            end,
+    chunk_exprs(Rest, S2, Depth);
 
-chunk_exprs([?PATTERN_QMARK = TokQMark, ?PATTERN_QMARK = TokQMark2, ?PATTERN_VAR(_) = TokName | Rest], Stream, Depth) ->
-    chunk_exprs(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokQMark2, TokName]), Depth);
-
+    
+chunk_exprs([?PATTERN_QMARK = TokQMark, TokName | Rest], Stream, Depth) ->
+    State = tokstream:get_userdata(Stream),
+    IsIdentifier = State#state.identifier,
+    {R2, S2} =  case IsIdentifier(TokName) of
+                    true    ->
+                        TokIdent = tokens:change_type(identifier, TokName),
+                        scan_macro_use(Rest, tokstream:push_many_tokens(Stream, [TokQMark, TokIdent]))
+                        
+                ;   false   ->
+                        {Rest, tokstream:push_to_chunk(Stream, [TokQMark, TokName])}
+                end,
+    chunk_exprs(R2, S2, Depth);
+    
 
 chunk_exprs([Hd | Rest], Stream, Depth) ->
     chunk_exprs(Rest, tokstream:push_to_chunk(Stream, Hd), Depth).
-
-
     
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -340,6 +400,16 @@ chunk_exprs([Hd | Rest], Stream, Depth) ->
 
 directives() ->
     [include, include_lib, define, ifdef, ifndef, undef, else, endif].
+    
+keyword(include)        -> include_keyword;
+keyword(include_lib)    -> include_lib_keyword;
+keyword(define)         -> define_keyword;
+keyword(ifdef)          -> ifdef_keyword;
+keyword(ifndef)         -> ifndef_keyword;
+keyword(undef)          -> undef_keyword;
+keyword(else)           -> else_keyword;
+keyword(endif)          -> endif_keyword;
+keyword(X)              -> X.
 
 
 %%%%% ------------------------------------------------------- %%%%%    
@@ -381,9 +451,9 @@ mk_module_name() ->
 -spec split_token_expr( type:tokens() ) -> [type:tokens()].
 
 split_token_expr(Tokens) ->
-	Stream = split_exprs(Tokens, tokstream:new(?TOKEN_CHUNK), {0,0,0}),
-	SplitTokens = tokstream:final(Stream),
-	[ tokens:get_embed_data(?TOKEN_CHUNK, X) || X <- SplitTokens ].
+    Stream = split_exprs(Tokens, tokstream:new(?TOKEN_CHUNK), {0,0,0}),
+    SplitTokens = tokstream:final(Stream),
+    [ tokens:get_embed_data(?TOKEN_CHUNK, X) || X <- SplitTokens ].
 
 
 split_exprs([], Stream, {0, 0, 0}) ->
@@ -404,26 +474,26 @@ split_exprs([?PATTERN_LSQR = TokLeft | Rest], Stream, {Bra, Curl, Sqr}) ->
 
 
 split_exprs([?PATTERN_RBRACKET | _Rest], Stream, {0, _, _}) ->
-	tokstream:error(Stream); 	% @todo another error message
+    tokstream:error(Stream);    % @todo another error message
 
 split_exprs([?PATTERN_RBRACKET = TokRight | Rest], Stream, {Bra, Curl, Sqr}) ->
     split_exprs(Rest, tokstream:push_to_chunk(Stream, TokRight), {Bra - 1, Curl, Sqr});
 
 split_exprs([?PATTERN_RCURL | _Rest], Stream, {_, 0, _}) ->
-	tokstream:error(Stream); 	% @todo another error message
+    tokstream:error(Stream);    % @todo another error message
 
 split_exprs([?PATTERN_RCURL = TokRight | Rest], Stream, {Bra, Curl, Sqr}) ->
     split_exprs(Rest, tokstream:push_to_chunk(Stream, TokRight), {Bra, Curl - 1, Sqr});
 
 split_exprs([?PATTERN_RSQR | _Rest], Stream, {_, _, 0}) ->
-	tokstream:error(Stream); 	% @todo another error message
+    tokstream:error(Stream);    % @todo another error message
 
 split_exprs([?PATTERN_RSQR = TokRight | Rest], Stream, {Bra, Curl, Sqr}) ->
     split_exprs(Rest, tokstream:push_to_chunk(Stream, TokRight), {Bra, Curl, Sqr - 1});
 
 
 split_exprs([?PATTERN_COMMA | Rest], Stream, {0, 0, 0} = Depth) ->
-	split_exprs(Rest, tokstream:end_chunk(Stream), Depth);
+    split_exprs(Rest, tokstream:end_chunk(Stream), Depth);
 
 
 split_exprs([Hd | Rest], Stream, Depths) ->

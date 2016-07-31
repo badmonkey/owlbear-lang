@@ -2,21 +2,23 @@
 % Alternative Erlang preprocessor
 
 Nonterminals
-    File
+    Module
     Elements
     ElementSeq
+    Element
 
-    Chunks
     Chunk
-    ChunkExpr
-    ChunkExprItem
+    Identifier
+    
+    ClientExpr
+    ExprList
+    Expr
 
     Include
     Include_lib
 
     ApplyMacro
     ApplyMacroString
-    MacroName
     MacroArgs
 
     IfDef
@@ -24,101 +26,162 @@ Nonterminals
     Else
     EndIf
     Define
+    UnDefine
 
     UserDirective
 
     IfBlock
     IfNBlock
-    ElseBlock
-
     .
 
 
-% Terminals taken from erl_parse.yrl
 Terminals
-    atom var string
-    ifdef_pp ifndef_pp else_pp endif_pp define_pp include_pp include_lib_pp
+    identifier string
+    include_keyword include_lib_keyword
+    define_keyword undef_keyword
+    ifdef_keyword ifndef_keyword else_keyword endif_keyword  
     '?'  '-'  '('  ')'  ','
-    'beamtools$CHUNK'  'beamtools$DIRECTIVE'  'beamtools$STASH'
+    'beamtools$CHUNK'  'beamtools$RAW'
     dot
     .
 
 
-Rootsymbol File.
-
-Unary 200 '('.
+Rootsymbol Module.
 
 
-File -> Elements                        : '$1' ++ [{eof, 0}].
+Module -> Elements                                  : '$1'.
 
+Elements -> '$empty'                                : {sequence, []}.
+Elements -> ElementSeq                              : {sequence, '$1'}.
 
-Elements -> ElementSeq                  : {sequence, '$1'}.
+ElementSeq -> Element                               : ['$1'].
+ElementSeq -> Element ElementSeq                    : ['$1' | '$2'].
 
-ElementSeq -> '$empty'                  : [].
-ElementSeq -> ElementSeq Chunks         : '$1' ++ ['$2'].
-ElementSeq -> ElementSeq IfBlock        : '$1' ++ ['$2'].
-ElementSeq -> ElementSeq IfNBlock       : '$1' ++ ['$2'].
-ElementSeq -> ElementSeq UserDirective  : '$1' ++ ['$2'].
-ElementSeq -> ElementSeq Define         : '$1' ++ ['$2'].
-ElementSeq -> ElementSeq Include        : '$1' ++ ['$2'].
-ElementSeq -> ElementSeq Include_lib    : '$1' ++ ['$2'].
+Element -> Chunk                                    : '$1'.
+Element -> Define                                   : '$1'.
+Element -> UnDefine                                 : '$1'.
+Element -> IfBlock                                  : '$1'.
+Element -> IfNBlock                                 : '$1'.
+Element -> UserDirective                            : '$1'.
+Element -> Include                                  : '$1'.
+Element -> Include_lib                              : '$1'.
      
     
-Chunks -> Chunk                         : ['$1'].
-Chunks -> Chunks Chunk                  : '$1' ++ ['$2'].
+Chunk -> 'beamtools$CHUNK'                          : {write, unchunk('$1')}.
+Chunk -> ApplyMacro                                 : '$1'.
 
-Chunk -> 'beamtools$CHUNK'              : '$1'.
-Chunk -> ApplyMacro                     : '$1'.
-
-ChunkExpr -> ChunkExprItem              : ['$1'].
-ChunkExpr -> ChunkExpr ChunkExprItem    : '$1' ++ ['$2'].
-
-ChunkExprItem -> Chunk                  : '$1'.
-ChunkExprItem -> ApplyMacroString       : '$1'.
-    
+Identifier -> identifier                            : tokens:get_value('$1').
 
 
-IfDef  -> '-' ifdef_pp '(' MacroName ')' dot.
-IfNDef -> '-' ifndef_pp '(' MacroName ')' dot.
-Else   -> '-' else_pp dot.
-EndIf  -> '-' endif_pp dot.
+ClientExpr -> ExprList                              : {expr, '$1'}.
 
-Define -> '-' define_pp '(' MacroName ')' dot.
-Define -> '-' define_pp '(' MacroName ',' ChunkExpr ')' dot.
-Define -> '-' define_pp '(' MacroName '(' ')' ',' ChunkExpr ')' dot.
-Define -> '-' define_pp '(' MacroName '(' MacroArgs ')' ',' ChunkExpr ')' dot.
+ExprList -> Expr                                    : ['$1'].
+ExprList -> Expr ExprList                           : ['$1' | '$2'].
 
-
-IfBlock  -> IfDef Elements ElseBlock        : {pp_ifdef, '$1', '$2', '$3'}.
-IfNBlock -> IfNDef Elements ElseBlock       : {pp_ifndef, '$1', '$2', '$3'}.
-
-ElseBlock -> Else Elements EndIf            : '$2'.
-ElseBlock -> EndIf                          : {sequence, []}.
+Expr -> 'beamtools$CHUNK'                           : {tokens, unchunk('$1')}.
+Expr -> ApplyMacro                                  : '$1'.
+Expr -> ApplyMacroString                            : '$1'.
 
 
-Include -> '-' include_pp '(' string ')' dot.
-Include_lib -> '-' include_lib_pp '(' string ')' dot.
+Define -> define_keyword '(' Identifier ')' dot                                     : {define}.
+Define -> define_keyword '(' Identifier ',' ClientExpr ')' dot                      : {define}.
+Define -> define_keyword '(' Identifier '(' ')' ',' ClientExpr ')' dot              : {define}.
+Define -> define_keyword '(' Identifier '(' MacroArgs ')' ',' ClientExpr ')' dot    : {define}.
+
+UnDefine -> undef_keyword '(' Identifier ')' dot    : {undef, '$3'}.
 
 
-UserDirective -> '-' 'beamtools$DIRECTIVE' '(' ')' 'beamtools$STASH' dot            : {user_directive, '$2', undefined, '$5'}.
-UserDirective -> '-' 'beamtools$DIRECTIVE' '(' ChunkExpr ')' 'beamtools$STASH' dot  : {user_directive, '$2', '$4', '$6'}.
+IfBlock  -> IfDef Elements Else Elements EndIf      : {test_and_write, '$1', '$2', '$4'}.
+IfBlock  -> IfDef Elements EndIf                    : {test_and_write, '$1', '$2', undefined}.
+
+IfNBlock -> IfNDef Elements Else Elements EndIf     : {test_and_write, '$1', '$4', '$2'}.
+IfNBlock -> IfNDef Elements EndIf                   : {test_and_write, '$1', undefined, '$2'}.
 
 
-ApplyMacro -> '?' MacroName                         : {'expand_macro', '$2'}.
-ApplyMacro -> '?' MacroName '(' ChunkExpr ')'       : {'expand_macro', '$2', '$4'}.
+IfDef  -> ifdef_keyword '(' Identifier ')' dot      : '$3'.
+IfNDef -> ifndef_keyword '(' Identifier ')' dot     : '$3'.
+Else   -> else_keyword dot.
+EndIf  -> endif_keyword dot.
 
-ApplyMacroString -> '?' '?' var 'beamtools$STASH'   : {'expand_macro_string', '$3', '$4'}.
+
+Include -> include_keyword '(' string ')' dot           : {include, file, '$3'}.
+Include_lib -> include_lib_keyword '(' string ')' dot   : {include, resolve, '$3'}.
 
 
-MacroName -> atom                                   : '$1'.
-MacroName -> var                                    : '$1'.
-     
-MacroArgs -> var                                    : ['$1'].
-MacroArgs -> MacroArgs ',' var                      : '$1' ++ ['$3'].
+UserDirective -> '-' Identifier 'beamtools$RAW' '(' ')' dot             : {user_directive, '$2', ['$1', unraw('$3'), '$4', '$5', '$6']}.
+UserDirective -> '-' Identifier 'beamtools$RAW' '(' ClientExpr ')' dot  : {user_directive, '$2', '$5', ['$1', unraw('$3'), '$4'], ['$6', '$7']}.
+
+
+ApplyMacro -> '?' Identifier                        : {expand_macro, '$2'}.
+ApplyMacro -> '?' Identifier '(' ClientExpr ')'     : {expand_macro, '$2', '$4'}.
+
+ApplyMacroString -> '?' '?' Identifier              : {expand_macro_string, '$3'}.
+
+
+MacroArgs -> Identifier                             : ['$1'].
+MacroArgs -> Identifier ',' MacroArgs               : ['$1' | '$3'].
 
 
 
 Erlang code.
+%%%%% ------------------------------------------------------- %%%%%
 
+
+-export([evaluate/2]).
+
+
+%%%%% ------------------------------------------------------- %%%%%
+
+
+evaluate(Tokens, State) ->
+    lists:flatten( eval(Tokens, State) ).
+
+    
+%%%%% ------------------------------------------------------- %%%%%
+    
+
+eval(undefined, State) ->
+    [];
+    
+eval({sequence, Elements}, State) ->
+    [ eval(X, State) || X <- Elements ];
+    
+eval({write, Tokens}, State) ->
+    Tokens;
+
+    
+eval({test_and_write, Macro, True, False}, State) ->
+    case Macro == undefined of
+        true    -> eval(True, State)
+    ;   false   -> eval(False, State)
+    end;
+
+    
+eval({user_directive, Directive, Original}, State) ->
+    Original;
+        
+eval({user_directive, Directive, Expr, Head, Tail}, State) ->
+    Head ++ Tail;
+
+    
+eval({expand_macro, Name}, State) ->
+    [];
+    
+eval({expand_macro, Name, ParamChunk}, State) ->
+    [];
+    
+    
+eval(_, _) ->
+    {error, unknown_pp_cmd}.
+    
+
+%%%%% ------------------------------------------------------- %%%%%
+
+
+unraw(X) ->
+    tokens:get_embed_data('beamtools$RAW', X).
+    
+unchunk(X) ->
+    tokens:get_embed_data('beamtools$CHUNK', X).
 
 

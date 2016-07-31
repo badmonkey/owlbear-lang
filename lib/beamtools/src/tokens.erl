@@ -1,10 +1,12 @@
 
 -module(tokens).
 
--export([ from_term/1, from_expr/1, from_expr/2
+-export([ from_term/1, from_expr/1, from_expr/2, to_code/1
         , set_location/2, file_attribute/2
         , make_embed/2, get_embed_data/2, is_embed/2
-		, get_type/1, get_location/1, get_value/1, has_value/1]).
+        , get_type/1, get_location/1, get_value/1, has_value/1
+        , get_line/1
+        , change_type/2 ]).
 
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -59,10 +61,10 @@ file_attribute(FileName, {Line,_} = Loc) ->
     , {integer, Loc, Line}
     , {')', Loc}
     , {dot, Loc}
-	];
+    ];
 
 file_attribute(FileName, Line) when is_integer(Line) ->
-	file_attribute(FileName, {Line, 1}).
+    file_attribute(FileName, {Line, 1}).
 
 
 
@@ -72,31 +74,30 @@ file_attribute(FileName, Line) when is_integer(Line) ->
 -spec make_embed( atom(), type:token() | type:tokens() ) -> type:token().
 
 make_embed(_, []) ->
-    [];
+    [];         %% @todo special value for tokstream?? make a token with no location?!
     
-make_embed(Tag, Chunk)
-        when is_atom(Tag), is_list(Chunk) ->    
-    Data = lists:reverse(Chunk),
-    {Tag, element(2, hd(Data)), {embed, Data}};
+make_embed(Tag, Tokens)
+        when is_atom(Tag), is_list(Tokens) ->    
+    {Tag, get_location( hd(Tokens) ), {embed, Tokens}};
     
-make_embed(Tag, Data)
-        when is_atom(Tag), is_tuple(Data), tuple_size(Data) =:= 3 ->    
-    {Tag, element(2, Data), {embed, Data}}.
+make_embed(Tag, Token)
+        when is_atom(Tag), is_tuple(Token) ->    
+    {Tag, get_location(Token), {embed, Token}}.
 
 
 
--spec get_embed_data( atom(), type:token() ) -> type:token() | type:tokens().
+-spec get_embed_data( atom(), type:token() ) -> undefined | type:token() | type:tokens().
     
 get_embed_data(Tag, {Tag, _, {embed, Data}}) -> Data;
-get_embed_data(_, _) -> undefined.
+get_embed_data(_, _T) -> undefined.  %% @todo return the token _T ?
 
 
 
 -spec is_embed( atom(), type:token() ) -> boolean().
     
-is_embed(any, {_, _, {embed, _}}) 	-> true;
-is_embed(Tag, {Tag, _, {embed, _}})	-> true;
-is_embed(_, _) 						-> false.
+is_embed(any, {_, _, {embed, _}})   -> true;
+is_embed(Tag, {Tag, _, {embed, _}}) -> true;
+is_embed(_, _)                      -> false.
 
 
 %%%%% ------------------------------------------------------- %%%%%
@@ -114,7 +115,7 @@ get_type(_) -> undefined.
 get_location({_, Loc}) -> Loc;
 get_location({_, Loc, _}) -> Loc;
 get_location(_) -> undefined.
-	
+    
 
 -spec get_value( type:token() ) -> type:symbol().
 
@@ -128,3 +129,62 @@ has_value({_, _, _}) -> true;
 has_value(_) -> false.
 
 
+-spec change_type( atom(), type:token() ) -> type:token().
+
+change_type(NewType, {_, Loc})      -> {NewType, Loc};
+change_type(NewType, {_, Loc, Val}) -> {NewType, Loc, Val}.
+
+
+%%%%% ------------------------------------------------------- %%%%%
+
+
+-spec get_line( type:location() ) -> type:ordinal().
+
+get_line({L, _})                -> L;
+get_line(L) when is_integer(L)  -> L.
+
+
+%%%%% ------------------------------------------------------- %%%%%
+
+prefix(S, {L, C}, {LCur, CCur}) ->
+    MoreLines = L - LCur,
+    MoreSpaces = C - CCur,
+    case MoreLines of
+        0   ->
+            case MoreSpaces of
+                0   -> S
+            ;   1   -> S
+            ;   _   -> string:chars($\s, 1, S)
+            end
+            
+    ;   _ when MoreLines < 3  ->
+            case C of
+                1   -> string:chars($\n, MoreLines, S)
+            ;   _   -> string:chars($\n, MoreLines, string:chars($\s, C, S))
+            end
+            
+    ;   _   ->
+            case C of
+                1   -> string:chars($\n, 2, S)
+            ;   _   -> string:chars($\n, 2, string:chars($\s, C, S))
+            end
+    end.
+    
+
+to_code(Tokens) ->
+    {_, Tmp} =  lists:foldl(
+                    fun({dot, Loc}, {L, Accum})      ->
+                            {Loc, [ io_lib:format(prefix(".", Loc, L), []) | Accum ]}
+                        
+                    ;  ({Type, Loc}, {L, Accum})        ->
+                            {Loc, [ io_lib:format(prefix("~s", Loc, L), [erlang:atom_to_list(Type)]) | Accum ]}
+                    
+                    ;  ({Type, Loc, Data}, {L, Accum})
+                                when Type =:= atom orelse Type =:= var ->
+                            {Loc, [ io_lib:format(prefix("~s", Loc, L), [erlang:atom_to_list(Data)]) | Accum ]}
+                            
+                    ;  ({_, Loc, Data}, {L, Accum})   ->
+                            {Loc, [ io_lib:format(prefix("~p", Loc, L), [Data]) | Accum ]}
+
+                    end, {{0,0}, []}, Tokens),
+    lists:flatten( lists:reverse(Tmp) ).
