@@ -83,10 +83,10 @@ Expr -> ApplyMacro                                  : '$1'.
 Expr -> ApplyMacroString                            : '$1'.
 
 
-Define -> define_keyword '(' Identifier ')' dot                                     : {define}.
-Define -> define_keyword '(' Identifier ',' ClientExpr ')' dot                      : {define}.
-Define -> define_keyword '(' Identifier '(' ')' ',' ClientExpr ')' dot              : {define}.
-Define -> define_keyword '(' Identifier '(' MacroArgs ')' ',' ClientExpr ')' dot    : {define}.
+Define -> define_keyword '(' Identifier ')' dot                                    	: {define}.
+Define -> define_keyword '(' Identifier ',' ClientExpr ')' dot                     	: {define}.
+Define -> define_keyword '(' Identifier '(' ')' ',' ClientExpr ')' dot             	: {define}.
+Define -> define_keyword '(' Identifier '(' MacroArgs ')' ',' ClientExpr ')' dot 	: {define}.
 
 UnDefine -> undef_keyword '(' Identifier ')' dot    : {undef, '$3'}.
 
@@ -108,8 +108,8 @@ Include -> include_keyword '(' string ')' dot           : {include, file, '$3'}.
 Include_lib -> include_lib_keyword '(' string ')' dot   : {include, resolve, '$3'}.
 
 
-UserDirective -> '-' Identifier 'beamtools$RAW' '(' ')' dot             : {user_directive, '$2', ['$1', unraw('$3'), '$4', '$5', '$6']}.
-UserDirective -> '-' Identifier 'beamtools$RAW' '(' ClientExpr ')' dot  : {user_directive, '$2', '$5', ['$1', unraw('$3'), '$4'], ['$6', '$7']}.
+UserDirective -> '-' Identifier 'beamtools$RAW' '(' ')' dot            	: {user_directive, '$2', ['$1', unraw('$3'), '$4', '$5', '$6']}.
+UserDirective -> '-' Identifier 'beamtools$RAW' '(' ClientExpr ')' dot	: {user_directive, '$2', '$5', ['$1', unraw('$3'), '$4'], ['$6', '$7']}.
 
 
 ApplyMacro -> '?' Identifier                        : {expand_macro, '$2'}.
@@ -133,8 +133,8 @@ Erlang code.
 %%%%% ------------------------------------------------------- %%%%%
 
 
-evaluate(Tokens, State) ->
-    lists:flatten( eval(Tokens, State) ).
+evaluate(Tree, State) ->
+    lists:flatten( eval(Tree, State) ).
 
     
 %%%%% ------------------------------------------------------- %%%%%
@@ -151,7 +151,7 @@ eval({write, Tokens}, State) ->
 
     
 eval({test_and_write, Macro, True, False}, State) ->
-    case Macro == undefined of
+    case preprocessor:has_macro(Macro, State) of
         true    -> eval(True, State)
     ;   false   -> eval(False, State)
     end;
@@ -168,6 +168,9 @@ eval({expand_macro, Name}, State) ->
     [];
     
 eval({expand_macro, Name, ParamChunk}, State) ->
+    [];
+
+eval({expand_macro_string, Name}, State) ->
     [];
     
     

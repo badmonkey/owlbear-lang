@@ -1,7 +1,8 @@
 
 -module(preprocessor).
 
--export([ new/2, new/3, define_macro/4
+-export([ new/2, new/3
+		, define_macro/4, has_macro/2
         , file/1, file/2, file/3, process/2
         , format/1, split_token_expr/1
         , get_filename/1, get_module/1 ]).
@@ -10,10 +11,10 @@
 %%%%% ------------------------------------------------------- %%%%%
 
 
--type macro_name() :: string() | {string(), type:cardinal()}.
+-type macro_name() :: atom() | {atom(), type:cardinal()}.
 -type macro_params() :: constant | [ atom() ].
 -type macro_args() :: constant | [ type:tokens() ].
--type macro_value() :: type:tokens() | fun( ( string(), type:location(), macro_args() ) -> type:tokens() ).
+-type macro_value() :: type:tokens() | fun( ( atom(), type:location(), macro_args() ) -> type:tokens() ).
 
 -type macros_type() :: #{ macro_name() => macro_value() }.
 
@@ -30,7 +31,7 @@
        , directives     = #{}                       :: #{ atom() => directive_cb(#state{}) }
        , options        = #{}                       :: #{ atom() => term() }
        
-       , macros         = #{}                       :: macros_type()
+       , macros         = #{}                       :: #{ macro_name() => macro_value() }
        }).
 -opaque state() :: #state{}.
        
@@ -60,7 +61,7 @@
 % scanner       :: type:scanner()
 % split_expr
 % directives    :: [atom()]
-% defines       :: [{string(), macro_params(), macro_value()}]
+% defines       :: [{atom(), macro_params(), macro_value()}]
 %
 
 default_directive(_Name, _Loc, _Args, State) ->
@@ -87,11 +88,11 @@ new(FileName, Module, #{} = Opts)
                                        , fun(X) -> is_function(X, 2) end
                                        , #state.scanner, S0),
                                        
-    S2 = define_macros([ {"FILE", constant, tokens:from_term(FileName)}
-                       , {"MODULE", constant, tokens:from_term(Module)}
-                       , {"MODULE_STRING", constant, tokens:from_term(erlang:atom_to_list(Module))}
-                       , {"LINE", constant, fun macro_line_func/3}
-                       , {"MACHINE", constant, tokens:from_term('BEAM')}
+    S2 = define_macros([ {'FILE', constant, tokens:from_term(FileName)}
+                       , {'MODULE', constant, tokens:from_term(Module)}
+                       , {'MODULE_STRING', constant, tokens:from_term(erlang:atom_to_list(Module))}
+                       , {'LINE', constant, fun macro_line_func/3}
+                       , {'MACHINE', constant, tokens:from_term('BEAM')}
                        | maps:get(defines, Opts, [])
                        ], S1),
                        
@@ -129,7 +130,7 @@ file(FileName, #{} = Opts) ->
     file(FileName, erlang:list_to_atom(Module), Opts);
 
 file(FileName, #state{} = State) ->
-    S2 = define_macro("FILE", constant, tokens:from_term(FileName), State),
+    S2 = define_macro('FILE', constant, tokens:from_term(FileName), State),
     process_file( push_filename(FileName, S2) ).
     
     
@@ -498,5 +499,18 @@ split_exprs([?PATTERN_COMMA | Rest], Stream, {0, 0, 0} = Depth) ->
 
 split_exprs([Hd | Rest], Stream, Depths) ->
     split_exprs(Rest, tokstream:push_to_chunk(Stream, Hd), Depths).
+
+
+%%%%% ------------------------------------------------------- %%%%%    
+
+
+-spec has_macro( atom(), state() ) -> boolean().
+
+has_macro(Name, #state{ macros = Macros }) ->
+	lists:any(
+	  	fun	({{Name, _},_})	-> true
+		;	({Name,_}) 		-> true
+		;	(_)				-> false
+		end, maps:to_list(Macros) ).
 
 
