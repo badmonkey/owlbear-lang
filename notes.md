@@ -103,13 +103,21 @@ fix_path([Hd | Rest], Pre) ->
 guard is_between(X, Min, Max) ->
     % only one clause
     % only allow guard tests + expansions of guard functions.
+    % no recursion
+    % functions that can be converted to guard expressions
 end
 
 can be expanded into guard test inside guard or called as function
 params need to be relabel to avoid duplicate collisions
 
+module numbers
+public guard is_between(X, Min, Max) ->  X >= Min andalso X <= Max.
+end
 
-x = expr(), expr2(), expr3().
+somefunc(X) when numbers:is_between(X, 1, 100) -> ...
+
+
+
 
 
 E = expression
@@ -132,31 +140,38 @@ E = expression with fun maybe/1 |> first(&1, 2) |> ..
     expression with `maybe(&1) |> first(&1, 2) |> ..
     expression with fun maybe(&1)/1 |> 
        
-    
-    E |> F2 |> F3 |> F4 ...
-    (((E |> F2) |> F3) |> F4) ...
-    ... F4( F3( F2(E) ) )
-    
-    E with F1 |> F2 |> F3 |> F4 ...
-    (((E with F1 |> F2) |> F3) |> F4) ...
-    
-    E with T |> F  => 'monad(T, F, E)
-    
-    'monad(F1, F2, E) with F1 |> F3 |> F4 ...
-    'monad(F1, F3, 'monad(F1, F2, E)) with F1 |> F4 ...
-    'monad(F1, F4, 'monad(F1, F3, 'monad(F1, F2, E))) with F1 ...
-    
-    
-    'monad(T, N, E) ->
-        case T(E) of
-            true    -> N(E)
-        ;   X       -> X
+       
+with {:ok, binary} <- File.read(path),
+     header = parse_header(binary),
+     {:ok, data} <- :beam_lib.chunks(header, :abstract_code),
+     do: {:ok, wrap(data)}
+
+This works because with will only keep chaining if the value matches
+the pattern on the left. If not then the chain is aborted and the
+first non-matching result is returned.
+
+
+with
+    Pattern1 <- expr1,
+    Pattern2 <- expr2,
+    expr3,
+    Pattern3 <- expr4
+end
+
+case expr1 of
+    Pattern1 ->
+        case expr2 of
+            Pattern2 ->
+                expr3,
+                case expr4 of
+                    Pattern3 = R -> R
+                ;   X$3 -> X$3
+                end
+        ;   X$2 -> X$2
         end
-        
-    'Maybe(F1, E, fun(X1) ->
-                    'Maybe(F1, X, fun(X2) ->
-                                  end)
-                  end)
+;   X$1 -> X$1
+end
+       
 
 chain function calls
 Object:new(value):set_title():something().
@@ -203,7 +218,7 @@ else
     some(), expression()
 end
 
-if
+ifcond
 ;   E1 ->
 ;   E2 ->
 ;   E3 ->
@@ -292,14 +307,22 @@ App
 App.Module:Thing()
 Module:Thing()
 
-   
-atoms
-'atom$with#specials'
 
-`atom
-#atom
-$atom
-:atom
+application bugs
+module super
+init/0
+
+super:init()
+super.init()
+bugs.super:init()
+bugs.super.init()
+bugs:super:init()
+
+stdlib:lists:foldl()
+erlang:lists:foldl()
+
+
+
 
 need a first class string type
 
@@ -345,7 +368,7 @@ interface Monad
 end
 
 
-
+Application-Module
 baron$Application.Module
 baron$Application.Module$Protocol
 
@@ -358,6 +381,8 @@ end
 baron$std.enum.beam
 baron$std.enum$enumerable.beam
 baron.std.enum.enumerable.beam
+std-enum.beam
+baron.std-enum.beam
 
 
 
@@ -486,6 +511,21 @@ build/
   release/
   ebin/
   src/
+
+
+
+
+atom, 'Atom'        Variable
+:atom, :'Atom'      Variable, variable
+
+#atom, #Atom, #'atom$special'
+$atom, $Atom
+@atom, @Atom
+^atom, ^Atom
+?atom, ?Atom
+`atom, `Atom
+~atom, ~Atom
+&atom, &Atom
 
 
 

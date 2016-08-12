@@ -2,6 +2,10 @@
 -module(test1).
 -version("1.0.0").
 
+F(_1, _2)
+
+&foo
+
 
 -ifdef(VERSION).
 
