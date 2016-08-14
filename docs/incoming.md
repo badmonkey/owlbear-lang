@@ -24,6 +24,10 @@ via aleppo
 -warning "some warning"
 
 
+defmodule somemodule
+end
+
+
 -spec fix_path( list(), list() ) -> ok | list().
 -trait(fix_path/2, [pure, ~costly]).
 -deprecated(fix_path/2).
@@ -100,7 +104,7 @@ fix_path([Hd | Rest], Pre) ->
     fix_path(Rest, Pre ++ [Hd]).
     
     
-guard is_between(X, Min, Max) ->
+defguard is_between(X, Min, Max) ->
     % only one clause
     % only allow guard tests + expansions of guard functions.
     % no recursion
@@ -141,37 +145,6 @@ E = expression with fun maybe/1 |> first(&1, 2) |> ..
     expression with fun maybe(&1)/1 |> 
        
        
-with {:ok, binary} <- File.read(path),
-     header = parse_header(binary),
-     {:ok, data} <- :beam_lib.chunks(header, :abstract_code),
-     do: {:ok, wrap(data)}
-
-This works because with will only keep chaining if the value matches
-the pattern on the left. If not then the chain is aborted and the
-first non-matching result is returned.
-
-
-with
-    Pattern1 <- expr1,
-    Pattern2 <- expr2,
-    expr3,
-    Pattern3 <- expr4
-end
-
-case expr1 of
-    Pattern1 ->
-        case expr2 of
-            Pattern2 ->
-                expr3,
-                case expr4 of
-                    Pattern3 = R -> R
-                ;   X$3 -> X$3
-                end
-        ;   X$2 -> X$2
-        end
-;   X$1 -> X$1
-end
-       
 
 chain function calls
 Object:new(value):set_title():something().
@@ -199,46 +172,6 @@ product(X, Y) when is_tuple(X), 3 = tuple_size(X), is_function(Y, 3) ->
 product(X, Y) when is_tuple(X), N = tuple_size(X), is_function(Y, N) ->
 product(X, Y) when is_tuple(Y), N = tuple_size(Y), is_function(X, N) ->
 
-
-
-case E of
-;   P1 ->
-;   P2 ->
-;   P3 ->
-;   otherwise ->
-else
-    some(), expression()
-end
-
-ifguard
-    G1 ->
-;   G2 ->
-;   G3 ->
-else
-    some(), expression()
-end
-
-ifcond
-;   E1 ->
-;   E2 ->
-;   E3 ->
-else
-    some(), expression()
-end
-
-
-case E1 of
-    P1 ->
-;   P2 ->
-else case E2 of
-;   P3 ->
-;   P4 ->
-else case E3 of
-    P5 ->
-;   P6 ->
-else
-    some(), expressions()
-end
 
 
 -enum(name:size/type,
@@ -328,7 +261,7 @@ need a first class string type
 
 
 
-record$set(#record{} = X, field, value) -> X#record{ field = calue }
+record$set(#record{} = X, field, value) -> X#record{ field = value }
 
 
 like recless
@@ -528,6 +461,15 @@ $atom, $Atom
 &atom, &Atom
 
 
+X = :undefined
+X = #undefined
+X = $undefined
+X = @undefined
+X = ^undefined
+X = ?undefined
+X = `undefined
+X = ~undefined
+X = &undefined
 
 
 
