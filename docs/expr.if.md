@@ -61,6 +61,11 @@ else
     {error, something}
 end
 
+ifcond
+;   TooHot(S, Max)  -> MakeColder()
+;   TooCold(S, Min) -> MakeHotter()
+;   else            -> LeaveHeaterAlone()
+end
 
 
 ifcond
@@ -71,4 +76,14 @@ else
     else_expr
 end
 
+
+case E1 of
+    X@1 when X@1 =:= false orelse X@1 =:= undefined ->
+        case E2 of
+            X@2 when X@2 =:= false orelse X@2 =:= undefined -> else_expr
+        ;   _ -> body
+        end
+;   _ -> body
+        
+end
 

@@ -400,6 +400,18 @@ minmax(_, [], Acc) -> Acc
 end
 
 
+minmax(_, [], Acc) -> Acc
+;     (F, [H | Rest], {Min, Max} = Res)
+            when is_function(F,2)  ->
+    Acc =   ifcond
+            ;   F(H, Min) -> {H, Max}
+            ;   F(Max, H) -> {Min, H}
+            ;   else      -> Res
+            end,
+    minmax(F, Rest, Acc)
+end
+
+
 -----------------------------------------------------------------------------------
 
 
