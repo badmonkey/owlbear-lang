@@ -1,56 +1,10 @@
 
--module(atom).
--vsn("string").
--on_load(func/arity).
--behaviour(Behaviour).
--compile()
--compile(inline_list_funcs)
 
-
-via aleppo
--define, -undef, -ifdef, -ifndef, -else, -endif, -include, -include_lib
-
--module(application.mod).
--module(baron.std.monod)
 -warning("something")
 -error("error message").
--import(baron.std.set).
--import(baron.std.set -> set).
 -require(baron.std, application2).
 
 
--module baron.std.monod
--version "1.0.0/batman"
--warning "some warning"
-
-
-defmodule somemodule
-end
-
-
--spec fix_path( list(), list() ) -> ok | list().
--trait(fix_path/2, [pure, ~costly]).
--deprecated(fix_path/2).
-
-fix_path([], _)             -> ok
-...
-end
-
-
--spec fix_path( list(), list() ) -> ok | list() [pure, throws].
-
-@pure @~recursive @costly
-fix_path([], _)             -> ok
-...
-end
-
--trait
-
--attribute(something).
-
-
-pure, constant, recursive, tailcall, costly, guardlike, throws
-deprecated, public, inline
 
 
 -export([function/arity, ...]).
@@ -66,61 +20,6 @@ deprecated, public, inline
 -export(start/1,2; stop/1; reset/2).
 -export start/1,2  stop/1  reset/2.
 -export [start/1, start/2, stop/1, reset/2].
-
-
-public foo() ->
-    ok.
-        
--deftype sandwhich() :: a | b | c | integer().
--type sandwhich() :: a | b | c | integer().
-
--record name{field1spec, field2spec, ...}.    
-
--record dog
-    { name  :: string()
-    , age   :: integer()
-    }.
-
-
--spec[pure, throws] fix_path(list(), list()) -> result.
--type[pure, throws] fix_path(list(), list()) -> result.
--fun[pure, throws] fix_path(list(), list()) -> result.
--funtype[pure, throws] fix_path(list(), list()) -> result.
-
--type[pure, throws](list(), list()) -> result.
-fix_path([], _)             -> ok
-
--type(other_args) -> result.
-;       ([$/ | _], _)       -> ok
-;       ([$: | Rest], Pre)  ->
-            stuff
-end
-
-fix_path([Hd | Rest], Pre :: list)   ->
-    fix_path(Rest, Pre ++ [Hd])
-end
-
-fix_path([Hd | Rest], Pre) ->
-    fix_path(Rest, Pre ++ [Hd]).
-    
-    
-defguard is_between(X, Min, Max) ->
-    % only one clause
-    % only allow guard tests + expansions of guard functions.
-    % no recursion
-    % functions that can be converted to guard expressions
-end
-
-can be expanded into guard test inside guard or called as function
-params need to be relabel to avoid duplicate collisions
-
-module numbers
-public guard is_between(X, Min, Max) ->  X >= Min andalso X <= Max.
-end
-
-somefunc(X) when numbers:is_between(X, 1, 100) -> ...
-
-
 
 
 
@@ -144,34 +43,10 @@ E = expression with fun maybe/1 |> first(&1, 2) |> ..
     expression with `maybe(&1) |> first(&1, 2) |> ..
     expression with fun maybe(&1)/1 |> 
        
-       
-
-chain function calls
-Object:new(value):set_title():something().
-        
-        
-
-is_type(V1, V2, V3, ...)
+               
 
 [1, 2, 5..6]
 [1, 3..9, 11]
-
-
-product(X :: integer, Y :: integer) ->
-;      (X :: integer, Y :: list) ->
-;      (X :: tuple, Y :: function) ->
-;      (X :: tuple(3), Y :: function(3)) ->
-;      (X :: tuple(N), Y :: function(N)) ->
-;      (X :: function(N), Y :: tuple(N)) ->
-end
-
-product(X, Y) when is_integer(X, Y) ->
-product(X, Y) when is_integer(X), is_list(Y) ->
-product(X, Y) when is_tuple(X), is_function(Y) ->
-product(X, Y) when is_tuple(X), 3 = tuple_size(X), is_function(Y, 3) ->
-product(X, Y) when is_tuple(X), N = tuple_size(X), is_function(Y, N) ->
-product(X, Y) when is_tuple(Y), N = tuple_size(Y), is_function(X, N) ->
-
 
 
 -enum(name:size/type,
@@ -180,14 +55,6 @@ product(X, Y) when is_tuple(Y), N = tuple_size(Y), is_function(X, N) ->
      }.
 
 
-is_between(X, Min, Max)     ($tmp = X, $tmp >= Min, $tmp <= Max)
-
-
--spec foo( integer() ) -> #undefined | #greater | #lesser.
-foo (X) when X < 0  -> #lesser
-;   (X) when X > 0  -> #greater
-;   (0)             -> #'some$weird$atom'
-end
 
 undefined <=> #undefined
 
@@ -216,82 +83,8 @@ else
 end
 
 
-module:records() -> [atom()]
-module:record(size, atom() | tagtuple()) -> error() | pos_integer()
-module:record(fields, atom() | tagtuple()) -> error() | [atom()]
-module:record_field(types, atom() | [atom()], atom() | tagtuple()) -> error() | typeid() | [typeid()]
-module:record_field(offset, atom() | [atom()], atom() | tagtuple()) -> error() | natural() | [natural()]
-
-
-fun() -> ... end
-
-fun atom/num
-fun module:atom/num
-fun app.module:atom/num
-
-fun NAME/num
-fun NAME(params*)/num
-
-
-App
-    Module
-        Thing
-        
-App.Module:Thing()
-Module:Thing()
-
-
-application bugs
-module super
-init/0
-
-super:init()
-super.init()
-bugs.super:init()
-bugs.super.init()
-bugs:super:init()
-
-stdlib:lists:foldl()
-erlang:lists:foldl()
-
-
-
 
 need a first class string type
-
-
-
-record$set(#record{} = X, field, value) -> X#record{ field = value }
-
-
-like recless
-
--record r_address{ city :: string() }.
--record r_owner{ address :: r_address{} }.
--record r_project{ owner :: #r_owner{} }.
-
-Project :: r_project{}
-
-
-City = ((Project#r_project.owner)#r_owner.address)#r_address.city,
-NewProject =
-       Project#r_project{owner =
-        (Project#r_project.person)#r_owner{address =
-          ((Project#r_project.person)#r_owner.address)#r_address{city =
-            'Boston'}}}.
-            
-
-City = Project.owner.address.city,
-NewProject = Project.owner.address.city = 'Boston'.
-
-NewProject = Project.owner.address#{city = "Boston"}
-NewProject = Project.owner#{address = r_address()}
-NewProject = Project.owner#{address = #r_address{city = "Boston"}}
-
-
-record$set(Project, owner,
-    record$set(Project.owner, address,
-        record$set(Project.owner.address, city, "Boston") ) )
 
         
 
@@ -300,22 +93,6 @@ interface Monad
 ;   unit()  -> X
 end
 
-
-Application-Module
-baron$Application.Module
-baron$Application.Module$Protocol
-
-Appl std
-module enum
-  protocol enumerable
-  end
-end
-
-baron$std.enum.beam
-baron$std.enum$enumerable.beam
-baron.std.enum.enumerable.beam
-std-enum.beam
-baron.std-enum.beam
 
 
 
@@ -377,39 +154,6 @@ enum:count(Enum) ->
   
 protocol mutatable extends enumerable
 end
-  
-  
------------------------------------------------------------------------------------
-
-minmax(_, [])           -> undefined
-;     (F, [H | Rest])   -> minmax(F, Rest, {H, H})
-end
-
-
-minmax(_, [], Acc) -> Acc
-;     (F, [H | Rest], {Min, Max} = Res)
-            when is_function(F,2)  ->
-    Acc =   case F(H, Min) of
-                true -> {H, Max}
-            else case F(Max, H) of
-                true -> {Min, H}
-            else
-                Res
-            end,
-    minmax(F, Rest, Acc)
-end
-
-
-minmax(_, [], Acc) -> Acc
-;     (F, [H | Rest], {Min, Max} = Res)
-            when is_function(F,2)  ->
-    Acc =   ifcond
-            ;   F(H, Min) -> {H, Max}
-            ;   F(Max, H) -> {Min, H}
-            ;   else      -> Res
-            end,
-    minmax(F, Rest, Acc)
-end
 
 
 -----------------------------------------------------------------------------------
@@ -459,30 +203,7 @@ build/
 
 
 
-
-atom, 'Atom'        Variable
-:atom, :'Atom'      Variable, variable
-
-#atom, #Atom, #'atom$special'
-$atom, $Atom
-@atom, @Atom
-^atom, ^Atom
-?atom, ?Atom
-`atom, `Atom
-~atom, ~Atom
-&atom, &Atom
-
-
-X = :undefined
-X = #undefined
-X = $undefined
-X = @undefined
-X = ^undefined
-X = ?undefined
-X = `undefined
-X = ~undefined
-X = &undefined
-
-
+baron list --public application[.module]
+baron start application
 
  

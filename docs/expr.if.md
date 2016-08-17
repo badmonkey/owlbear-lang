@@ -20,33 +20,36 @@ end
 ---------------------------------------------------------------
 
 
-
 if
-;   {ok, Name}  <- get_name(Obj)                -> {local, Name}
-;   {ok, R}     <- remote:get_remote_name(Obj)  -> {global, R}
-;   {ok, Name}  <- database:make_new_name(Obj)  -> {global, Name}
-else
-    {error, something}
-end
-
-
-
-if
-    P1 <- E1 -> body;
-...
-    PN <- EN -> body;
-else
-    else_expr
+;	{ok, Name}  <- get_name(Obj)
+;   {ok, R}     <- remote:get_remote_name(Obj)
+;   {ok, Name}  <- database:make_new_name(Obj)
+;	else -> {error, something}
 end
 
 
 case E1 of
-;   P1 -> body
+;   P1 = X@1 -> X@1
+else case
 ...
 else case EN of
-;   PN -> body
+;   PN - X@1 -> X@N
 else
     else_expr
+end
+
+
+case get_name(Obj) of
+;	{ok, Name} = X@1 -> X@1
+;	_ ->
+		case remote:get_remote_name(Obj)
+		;	{ok, R} = X@2 -> X@2
+		;	_ ->
+				case database:make_new_name(Obj) of
+				;	{ok, Name} = X@3 -> X@3
+				;	_ -> {error, something}
+				end
+		end
 end
 
 
