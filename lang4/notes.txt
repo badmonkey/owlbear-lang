@@ -1,0 +1,38 @@
+
+
+type ::= type '|' type
+
+type ::= IDENT
+type ::= ATOM | none
+
+type ::= bool() | true | false
+
+type ::= float() | double()
+type ::= number() | number(min..max)
+type ::= int:NN() | unsigned:NN()
+
+type ::= char()
+type ::= string()
+
+type ::= byte()
+
+type ::= tuple()
+type ::= tuple(typelist)
+type ::= '{' '}'
+type ::= '{' typelist '}'
+type ::= '{' N * type '}'
+
+type ::= list(type)
+type ::= '[' ']'
+type ::= '[' type ']'
+
+type ::= map(type -> type)
+type ::= set(type)
+type ::= '#' '{' '}'
+type ::= '#' '{' type '}'
+type ::= '#' '{' type '->' type '}'
+
+type ::= safe type
+type ::= pure type
+
+type ::= '(' typelist ')' '->' type
