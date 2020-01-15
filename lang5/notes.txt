@@ -1,0 +1,61 @@
+
+
+typelist ::= typexpr
+typelist ::= typexpr ',' typelist
+
+typearg ::= typexpr
+typearg ::= literal
+
+typearglist ::= typearg
+typearglist ::= typearg ',' typearglist
+
+typeparam ::= IDENT
+typeparam ::= IDENT ':' typexpr
+
+typeparamlist ::= typeparam
+typeparamlist ::= typeparam ',' typeparamlist
+
+typenamelist ::= IDENT
+typenamelist ::= IDENT ',' typenamelist
+
+
+typexpr ::= IDENT
+typexpr ::= IDENT '(' typearglist ')'
+typexpr ::= '(' typexpr ')'
+typexpr ::= typexpr ('|' typexpr)*
+typexpr ::= typexpr ('&' typexpr)*		;; like a tuple
+typexpr ::= '{' typelist '}'
+typexpr ::= '{ typexpr ':' typexpr '}'
+typexpr ::= '[' typexpr ']'
+
+# unsafe receiving pure constant recursive tailcall
+annotatelist ::= IDENT
+annotatelist ::= IDENT ' ' annotatelist
+
+finaltype ::= typexpr
+finaltype ::= typexpr '::' annotatelist
+
+
+typeform ::= 'type' IDENT 'is' finaltype
+typeform ::= 'type' IDENT '(' typeparamlist ')' 'is' finaltype
+typeform ::= 'primitive' typenamelist
+
+
+----------------------------------------------------------------------------------
+
+
+type Map(K: Hashable(K), V) is HashMap(K, V, 64)
+type Person is { String, Int, [{String, [String] | String}] }
+
+type Map(K, V) is {K: V}
+
+
+type x is A or B
+type y is A, B or C
+type xa is A and B
+type ya is A, B and C
+
+primitive red, blue, green
+
+bob() -> unsafe pure :: int
+bob() -> int :: unsafe pure
