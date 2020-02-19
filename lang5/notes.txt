@@ -41,7 +41,18 @@ typeform ::= 'type' IDENT '(' typeparamlist ')' 'is' finaltype
 typeform ::= 'primitive' typenamelist
 
 
+typefunc ::= IDENT '(' ')'
+
+
 ----------------------------------------------------------------------------------
+
+unsafe receiving pure constant recursive tailcall unbound error
+        traitlist ::= TRAIT
+        traitlist ::= traitlist PLUS TRAIT
+
+        finaltype ::= typexpr
+        finaltype ::= typexpr PLUS traitlist
+
 
 
 type Map(K: Hashable(K), V) is HashMap(K, V, 64)
@@ -56,6 +67,14 @@ type xa is A and B
 type ya is A, B and C
 
 primitive red, blue, green
+
+type color is (red | blue | green)
+
+
+primitive undefined
+
+type Optional(T) is (undefined | T)
+
 
 bob() -> unsafe pure :: int
 bob() -> int :: unsafe pure
