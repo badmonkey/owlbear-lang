@@ -78,3 +78,56 @@ type Optional(T) is (undefined | T)
 
 bob() -> unsafe pure :: int
 bob() -> int :: unsafe pure
+
+
+
+
+I also find the fun and function distinction a bit silly so I went with:
+
+[ patt1 -> expr1 | patt2 -> expr2 | ... | pattN -> exprN ]
+which is equivalent to function in OCaml or F#.
+
+For example, double each element in a list:
+
+let double xs = List.map [x -> 2*x] xs
+Sum a list:
+
+let sum xs = List.fold [t -> [x -> t+x]] 0 xs
+
+let rec nth nn i =
+  [ 0 -> Set.singleton i
+  | 1 -> nn i
+  | n ->
+      let s0 = nth nn i (n-2) in
+      let s1 = nth nn i (n-1) in
+      let s2 = Set.fold [s -> [i -> Set.union s (nn i)]] Set.empty s1 in
+      s2 ]
+
+
+map #[x -> x + 1] data
+map f[x -> x + 1] data
+map [x -> x + 1] data
+map [[x -> x + 1]] data
+
+
+{tup0, tup1, tup2}
+
+
+
+
+
+
+machine soda(int)
+	waiting({coin, Amt}) ->
+		sum = self + Amt
+		ifcond
+			sum >= 10 ->
+				release_can()
+				return waiting, sum - 10
+			otherwise -> return waiting, sum
+		end
+
+
+x = soda()
+
+x.coin

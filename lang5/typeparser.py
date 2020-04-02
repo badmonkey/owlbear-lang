@@ -145,7 +145,7 @@ class TypeParser(GenericASTBuilder):
         """
 
 
-RESERVED_WORDS = re.split("\s+", """type is primitive or and trait end error let receive try catch public expr""")
+RESERVED_WORDS = re.split("\s+", """type is primitive or and trait end error let receive self try catch public expr""")
 TRACE_WORDS = re.split("\s+", """unsafe stackbound pure constant tailcall""")
 
 
