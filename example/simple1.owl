@@ -1,0 +1,43 @@
+
+primitive red, green, blue
+type color is (red | green | blue)
+
+type map is Hashmap({string: int}, 78)
+
+
+main(arg1: String, arg2: int): receive({color, string}) int | error ->
+    let x : int = 42
+    let x : int = maybeint?()
+    let? (a, b) = #somefunc(10, 20.23)
+
+    try
+        let a = receive
+        #make_message?() ~> process1
+        #catch()
+        #case
+        case? expr
+            patten -> expr;
+            patten ->
+                try?
+                    expr
+                catch
+                finally
+                end
+        end
+        first |> second |> third
+        with pattern = expr
+            expr
+        end
+        let name = "some string" or 'alternative " string'
+        """ a long
+string"""
+
+    catch
+        expr
+        expr
+    end
+    let x = expr
+
+
+public hello(x: Greetable(Frog)): int | error ->
+    let value = receive
