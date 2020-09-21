@@ -8,21 +8,22 @@ from owlbear.token import OwlbearToken
 RESERVED_WORDS = re.split(
     "\s+",
     """
-type is primitive or and error let
+type is primitive not or and error let
 receive self try catch with finally case end
 """,
 )
 
 UNSAFE_KEYWORDS = re.split("\s+", """let case""")
 
-
-BRACKET_TOKENS = {
-    "(": "LPAREN",
-    ")": "RPAREN",
-    "{": "LBRACE",
-    "}": "RBRACE",
-    "[": "LBRACKET",
-    "]": "RBRACKET",
+LONGSYMBOL_TOKENS = {
+    "|>": "PIPE",
+    "~>": "SEND",
+    "->": "ARROW",
+    "==": "EQUAL",
+    "!=": "NOTEQ",
+    "<=": "LTEQ",
+    ">=": "GTEQ",
+    "<-": "LEFTARROW",
 }
 
 SYMBOL_TOKENS = {
@@ -36,15 +37,19 @@ SYMBOL_TOKENS = {
     "+": "PLUS",
     "-": "MINUS",
     "=": "EQUAL",
+    "<": "LT",
+    ">": "GT",
     "*": "STAR",
+    "/": "DIV",
+    "!": "NOT",
+    "(": "LPAREN",
+    ")": "RPAREN",
+    "{": "LBRACE",
+    "}": "RBRACE",
+    "[": "LBRACKET",
+    "]": "RBRACKET",
 }
 
-LONGSYMBOL_TOKENS = {
-    "|>": "PIPE",
-    "->": "ARROW",
-    "<-": "LEFTARROW",
-    "~>": "SEND",
-}
 
 END_TOKEN = r""
 
@@ -74,12 +79,24 @@ class OwlbearScanner(GenericScanner):
             attr=s,
             line=self.lines[self.lineno],
             column=(self.pos - self.column0),
-            **kwargs
+            **kwargs,
         )
         self.rv.append(t)
 
+    def error(self, s, mesg=None):
+        symlen = len(s) if mesg else 1
+        mesg = mesg or "Invalid character"
+        print(f"Lexical error line {self.lineno + 1}: {mesg}")
+        print('"' + self.lines[self.lineno] + '"')
+        indent = " " * (self.pos - self.column0)
+        underline = "^" * symlen
+        print(f" {indent}{underline}")
+
+        raise SystemExit
+
     def t_newline(self, s):
         r"\n"
+        # print(f"COMPLETE.{self.lineno} [{self.lines[self.lineno]}]")
         self.lineno += 1
         self.column0 = self.pos + 1
 
@@ -87,16 +104,46 @@ class OwlbearScanner(GenericScanner):
         r"\s+"
         pass
 
-    def t_paren(self, s):
-        r"[(){}[\]]"
-        self.add_token(BRACKET_TOKENS[s], s)
+    def t_blockstring(self, s):
+        r"([\"]{3}(.|[\n])*?[\"]{3})|('{3}(.|[\n])*?'{3})"
+        self.lineno += s.count("\n")
+        self.add_token("STRING", s.strip(s[0]), text=s, is_literal=True)
+
+    def t_string(self, s):
+        r"('[^']*?')|(\"[^\"]*\")"
+        self.lineno += s.count("\n")
+        self.add_token("STRING", s.strip(s[0]), text=s, is_literal=True)
+
+    def t_blockcomment(self, s):
+        r"//>+([\s\S]*?)<+//"
+        self.lineno += s.count("\n")
+        block = s.strip("/")
+        block = block.lstrip(">")
+        block = block.rstrip("<")
+        self.add_token("COMMENT", block, text=s)
+
+    def t_comment(self, s):
+        r"//[^\n]*(\n//[^\n]*)*"
+        self.lineno += s.count("\n")
+        block = "\n".join([ln.lstrip("/") for ln in s.splitlines()])
+        self.add_token("COMMENT", block, text=s)
 
     def t_longsymbol(self, s):
-        r"(\|>)|(<-)|(->)|(~>)"
-        self.add_token(LONGSYMBOL_TOKENS[s], s)
+        r"[|!~><=-][>=-]"
+        if s in LONGSYMBOL_TOKENS:
+            self.add_token(LONGSYMBOL_TOKENS[s], s)
+            return
+
+        self.safe_symbol(s[0])
+        self.safe_symbol(s[1])
+
+    def safe_symbol(self, s):
+        if s not in SYMBOL_TOKENS:
+            self.error(s)
+        self.add_token(SYMBOL_TOKENS[s], s)
 
     def t_symbol(self, s):
-        r"[@:;*,.|&+=-]"
+        r"[(){}[\]<>@/:;*,.|&!+=-]"
         self.add_token(SYMBOL_TOKENS[s], s)
 
     def t_name(self, s):
@@ -117,28 +164,18 @@ class OwlbearScanner(GenericScanner):
             extra["text"] = s
 
         if is_literal and is_unsafe:
-            self.add_token("BADTOKEN", word, **extra)
-            return
-
-        kind = "IDENT"
+            self.error(s, "Identifier can't be both literal and unsafe")
 
         if word in RESERVED_WORDS:
-            if is_literal or (is_unsafe and word not in UNSAFE_KEYWORDS):
-                kind = "BADTOKEN"
-            else:
-                kind = word.upper()
+            if is_literal:
+                self.error(s, "Keywords can't be used as literal names")
+            if is_unsafe and word not in UNSAFE_KEYWORDS:
+                self.error(s, "This keyword can't be marked as unsafe")
 
-        self.add_token(kind, word, **extra)
-
-    def t_string(self, s):
-        r"(?:[\"]{3}(.|[\n])*[\"]{3})|('{3}(.|[\n])*'{3})|('[^']*')|(\"[^\"]*\")"
-        if s[0] == '"':
-            data = s.strip('"')
+            self.add_token(word.upper(), word, **extra)
         else:
-            data = s.strip("'")
-
-        self.add_token("STRING", data, text=s, is_literal=True)
+            self.add_token("IDENT", word, **extra)
 
     def t_number(self, s):
-        r"(0x[0-9a-f]+|0b[01]+|0o[0-7]+|\d+\.\d|\d+)j?"
+        r"(0x[0-9a-fA-F]+|0b[01]+|0o[0-7]+|\d+\.\d+|\d+)j?"
         self.add_token("NUMBER", s, text=s, is_literal=True)
