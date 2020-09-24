@@ -1,0 +1,73 @@
+// header comment
+
+// multi line
+// comments
+// to describe
+// a thing
+//
+primitive red, green, blue // all the comments
+
+"""
+A multi line
+string // with embedded comment
+must handle
+updating lineno
+"""
+
+"adjacent" "strings"
+r'regexp' u"unicode"
+
+this_is_a "multi
+line string"
+Z"what what"
+
+//>>>>>
+block comment?
+this is a pain to regex
+<<<<<<//
+
+//> turns out it wasn't so bad <//
+
+
+numbers
+3.14
+10.
+.001
+1e100
+3.14e-10
+0e0
+3.14_15_93
+15
+1_5
+
+1__5  _1.5  1_.5  1._5
+1.5_  1.5_e1  1.5e_1  1.5e1_
+
+radix
+0xdeadBEEF
+0xDead_Beef
+0b0001001001010
+0b0000_1111_0000_1111
+0o777
+
+0x_fff  0xfff_  0xff__ff
+
+
+foo
+bar
+type is and or not
+
+#literal_word()
+unsafe_word?()
+type_word!()
+
+let?
+receive?
+
+#literal_unsafe?()
+#literal_type!()
+catch?
+try!
+
+
+end
