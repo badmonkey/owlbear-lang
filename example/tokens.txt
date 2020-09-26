@@ -40,8 +40,8 @@ numbers
 15
 1_5
 
-1__5  _1.5  1_.5  1._5
-1.5_  1.5_e1  1.5e_1  1.5e1_
+1__5  _1.5  1_.5 1._5 1.5_
+1.5_e1  1.5e_1  1.5e1_
 
 radix
 0xdeadBEEF
@@ -53,9 +53,13 @@ radix
 0x_fff  0xfff_  0xff__ff
 
 
-foo
-bar
 type is and or not
+foo bar _ident ident_ snake_case _
+
+_1 _2
+_9inch
+
+9inch 5elphant
 
 #literal_word()
 unsafe_word?()

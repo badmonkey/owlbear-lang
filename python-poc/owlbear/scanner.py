@@ -4,16 +4,15 @@ from spark_parser.scanner import GenericScanner
 
 from owlbear.token import OwlbearToken
 
-
 RESERVED_WORDS = re.split(
-    "\s+",
+    r"\s+",
     """
 type is primitive not or and error let
 receive self try catch with finally case end
 """,
 )
 
-UNSAFE_KEYWORDS = re.split("\s+", """let case cond receive""")
+UNSAFE_KEYWORDS = re.split(r"\s+", """let case cond receive""")
 
 LONGSYMBOL_TOKENS = {
     "#[": "LAMBDA",
@@ -70,42 +69,48 @@ class OwlbearScanner(GenericScanner):
         self.lineno = 0
         self.column0 = 1
         self.continue_after_error = False
+        self.tokens = []
+        self.lines = []
 
-    def tokenize(self, input):
-        self.rv = []
-        self.lines = input.splitlines()
-        GenericScanner.tokenize(self, input)
-        return self.rv
+    def tokenize(self, s):
+        self.tokens = []
+        self.lines = s.splitlines()
+        GenericScanner.tokenize(self, s)
+        return self.tokens
 
     def add_token(self, name, s, **kwargs):
         t = OwlbearToken(
             kind=name,
             attr=s,
             line=self.lines[self.lineno],
+            lineno=self.lineno,
             column=(self.pos - self.column0),
             **kwargs,
         )
-        self.rv.append(t)
+        self.tokens.append(t)
+        return t
 
-    def error(self, s, mesg=None, symlen=None, quote=None, errline=None):
-        symlen = symlen or (len(s) if mesg else 1)
+    def error(self, s, mesg=None, symlen=None, quote=None):
+        # pylint: disable=arguments-differ
+        custom = mesg is not None
+        symlen = symlen if custom else 1
         mesg = mesg or "Invalid character"
-        quote = quote or '"'
-        errline = errline or self.lineno
-        print(f"Lexical error line {errline + 1}: {mesg}")
-        print(f"{quote}{self.lines[errline]}{quote}")
-        indent = " " * (self.pos - self.column0)
-        underline = "^" * symlen
-        print(f" {indent}{underline}")
 
-        custom = mesg != None
+        t = self.add_token("BADTOKEN", s, text=mesg)
+
+        print(f"Lexical error line {self.lineno + 1}: {mesg}")
+        print(t.highlight(symlen=symlen, quote=quote))
+
         if self.continue_after_error and custom:
-            self.add_token("BADTOKEN", s, text=mesg)
             return
 
         raise SystemExit
 
-    def t_newline(self, s):
+    @staticmethod
+    def contains(s, tst):
+        return any([c in s for c in tst])
+
+    def t_newline(self, _s):
         r"\n"
 
         # before t_whitespace: so "\n" is matched before "\s"
@@ -114,9 +119,8 @@ class OwlbearScanner(GenericScanner):
         self.lineno += 1
         self.column0 = self.pos + 1
 
-    def t_whitespace(self, s):
+    def t_whitespace(self, _s):
         r"\s+"
-        pass
 
     def t_blockstring(self, s):
         r"([\"]{3}(.|[\n])*?[\"]{3})|('{3}(.|[\n])*?'{3})"
@@ -130,16 +134,11 @@ class OwlbearScanner(GenericScanner):
 
         # before blockcomment,comment: so comments in strings are captured as strings
         cnt = s.count("\n")
-        errline = self.lineno
-        self.lineno += cnt  # so lineno remain good if we skip the error
         if cnt > 0:
             self.error(
-                s,
-                "Single quoted strings can't be multiline",
-                symlen=s.find("\n"),
-                quote="|",
-                errline=errline,
+                s, "Single quoted strings can't be multiline", symlen=s.find("\n"), quote="|"
             )
+            self.lineno += cnt  # so lineno remains good if we skip the error
             return
 
         raw = s
@@ -179,8 +178,20 @@ class OwlbearScanner(GenericScanner):
             return
         self.add_token("NUMBER", s, text=s, is_literal=True)
 
+    def t_number_like_names(self, s):
+        r"_?\d+[.A-Za-z_0-9+-]*[?!]?"
+
+        # before number,name: so "_?D+A+" are matched as names not numbers
+        # before number,name: so "D_.D" is matched as a number not multiple tokens
+        if OwlbearScanner.contains(s, ".+-"):
+            self.t_number(s)
+        elif re.match(r"^_\d+", s) or re.match(r".*[A-DF-Za-df-z?!]", s):
+            self.t_name(s)
+        else:
+            self.t_number(s)
+
     def t_number(self, s):
-        r"(([_\d]*\.[_\d]+) | ([_\d]+\.?))([eE][+-]?[_\d]+)?"
+        r"(([_\d]*\.[_\d]+) | (_?\d[_\d]*\.?))([eE][+-]?[_\d]+)?"
 
         # before symbol: so ".XXX" is matched in floats before matched as single "."
         # As with radix, we match with a looser regexp to catch typos
@@ -202,12 +213,17 @@ class OwlbearScanner(GenericScanner):
         self.safe_symbol(s[0])
         self.safe_symbol(s[1])
 
-    def t_name(self, s):
-        r"\#?[A-Za-z_][A-Za-z_0-9]*[?!]?"
+    def t_name(self, s):  # noqa
+        r"\#?[A-Za-z_0-9]+[?!]?"
 
         # before symbol: so "#XX" matched before "#"
         # match keywords and identifiers
         # handle special forms "#xxxx", "xxxx?", and "xxxx!"
+
+        if not re.fullmatch(r"\#?[A-Za-z_][A-Za-z_0-9]*[?!]?", s):
+            self.error(s, "Invalid formatted identifier")
+            return
+
         is_literal = s[0] == "#"
         is_unsafe = s[-1] == "?"
         is_type = s[-1] == "!"
