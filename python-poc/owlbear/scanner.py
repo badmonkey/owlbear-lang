@@ -7,12 +7,14 @@ from owlbear.token import OwlbearToken
 RESERVED_WORDS = re.split(
     r"\s+",
     """
-type is primitive not or and error let
-receive self try catch with finally case end
+is as or
+not and let try end
+type with self case cond
+error catch
+import
+primitive receive finally
 """,
 )
-
-UNSAFE_KEYWORDS = re.split(r"\s+", """let case cond receive""")
 
 LONGSYMBOL_TOKENS = {
     "#[": "LAMBDA",
@@ -24,6 +26,8 @@ LONGSYMBOL_TOKENS = {
     "<=": "CMPLTEQ",
     ">=": "CMPGTEQ",
     "<-": "LEFTARROW",
+    "<<": "LBITSTRING",
+    ">>": "RBITSTRING",
 }
 
 SYMBOL_TOKENS = {
@@ -41,7 +45,9 @@ SYMBOL_TOKENS = {
     ">": "CMPGT",
     "*": "STAR",
     "/": "DIV",
-    "!": "NOT",
+    "!": "EXCLAIM",
+    "?": "QMARK",
+    "#": "HASH",
     "(": "LPAREN",
     ")": "RPAREN",
     "{": "LBRACE",
@@ -179,13 +185,13 @@ class OwlbearScanner(GenericScanner):
         self.add_token("NUMBER", s, text=s, is_literal=True)
 
     def t_number_like_names(self, s):
-        r"_?\d+[.A-Za-z_0-9+-]*[?!]?"
+        r"_?\d+[.A-Za-z_0-9+-]*"
 
         # before number,name: so "_?D+A+" are matched as names not numbers
         # before number,name: so "D_.D" is matched as a number not multiple tokens
         if OwlbearScanner.contains(s, ".+-"):
             self.t_number(s)
-        elif re.match(r"^_\d+", s) or re.match(r".*[A-DF-Za-df-z?!]", s):
+        elif re.match(r"^_\d+", s) or re.match(r".*[A-DF-Za-df-z]", s):
             self.t_name(s)
         else:
             self.t_number(s)
@@ -203,7 +209,7 @@ class OwlbearScanner(GenericScanner):
         self.add_token("NUMBER", s, text=s, is_literal=True)
 
     def t_longsymbol(self, s):
-        r"[|!~><=-][>=-]"
+        r"[|!~><=-][<>=-]"
 
         # before symbol: so "xY" is matched before "x"
         if s in LONGSYMBOL_TOKENS:
@@ -213,57 +219,20 @@ class OwlbearScanner(GenericScanner):
         self.safe_symbol(s[0])
         self.safe_symbol(s[1])
 
-    def t_name(self, s):  # noqa
-        r"\#?[A-Za-z_0-9]+[?!]?"
+    def t_name(self, s):
+        r"[A-Za-z_0-9]+"
 
-        # before symbol: so "#XX" matched before "#"
         # match keywords and identifiers
-        # handle special forms "#xxxx", "xxxx?", and "xxxx!"
+        # handle special forms "xxxx?"
 
-        if not re.fullmatch(r"\#?[A-Za-z_][A-Za-z_0-9]*[?!]?", s):
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", s):
             self.error(s, "Invalid formatted identifier")
             return
 
-        is_literal = s[0] == "#"
-        is_unsafe = s[-1] == "?"
-        is_type = s[-1] == "!"
-
-        word = s
-        extra = {}
-        if is_literal:
-            extra["is_literal"] = True
-            word = word[1:]
-        if is_unsafe:
-            extra["is_unsafe"] = True
-            word = word[0:-1]
-        if is_type:
-            extra["is_type"] = True
-            word = word[0:-1]
-
-        if is_literal or is_unsafe or is_type:
-            extra["text"] = s
-
-        if is_literal and is_unsafe:
-            self.error(s, "Identifier can't be both literal and unsafe")
-            return
-        if is_literal and is_type:
-            self.error(s, "Identifier can't be both literal and type constructor")
-            return
-
-        if word in RESERVED_WORDS:
-            if is_literal:
-                self.error(s, "Keywords can't be used as literal names")
-                return
-            if is_type:
-                self.error(s, "Keywords can't be used as type constructors")
-                return
-            if is_unsafe and word not in UNSAFE_KEYWORDS:
-                self.error(s, "This keyword can't be marked as unsafe")
-                return
-
-            self.add_token(word.upper(), word, **extra)
+        if s in RESERVED_WORDS:
+            self.add_token(s.upper(), s)
         else:
-            self.add_token("IDENT", word, **extra)
+            self.add_token("NAME", s)
 
     def safe_symbol(self, s):
         if s not in SYMBOL_TOKENS:
@@ -272,5 +241,5 @@ class OwlbearScanner(GenericScanner):
         self.add_token(SYMBOL_TOKENS[s], s)
 
     def t_symbol(self, s):
-        r"[(){}[\]<>@/:;*,.|&!+=-]"
+        r"[(){}[\]<>@/:;*,.|&#?!+=-]"
         self.add_token(SYMBOL_TOKENS[s], s)

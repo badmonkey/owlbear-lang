@@ -53,8 +53,11 @@ radix
 0x_fff  0xfff_  0xff__ff
 
 
+import
 type is and or not
 foo bar _ident ident_ snake_case _
+full.qualified.name
+func().member
 
 _1 _2
 _9inch
