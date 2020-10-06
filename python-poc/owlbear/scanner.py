@@ -8,11 +8,11 @@ RESERVED_WORDS = re.split(
     r"\s+",
     """
 is as or
-not and let try end
-type with self case cond
-error catch
+not and let try end bor bsl bsr
+type with self case cond bnot band true
+error catch begin false
 import
-primitive receive finally
+primitive receive finally undefined otherwise
 """,
 )
 
@@ -28,6 +28,8 @@ LONGSYMBOL_TOKENS = {
     "<-": "LEFTARROW",
     "<<": "LBITSTRING",
     ">>": "RBITSTRING",
+    "++": "LSTADD",
+    "--": "LSTSUB",
 }
 
 SYMBOL_TOKENS = {
@@ -45,6 +47,7 @@ SYMBOL_TOKENS = {
     ">": "CMPGT",
     "*": "STAR",
     "/": "DIV",
+    "%": "PERCENT",
     "!": "EXCLAIM",
     "?": "QMARK",
     "#": "HASH",
@@ -209,7 +212,7 @@ class OwlbearScanner(GenericScanner):
         self.add_token("NUMBER", s, text=s, is_literal=True)
 
     def t_longsymbol(self, s):
-        r"[|!~><=-][<>=-]"
+        r"[|!~+><=-][+<>=-]"
 
         # before symbol: so "xY" is matched before "x"
         if s in LONGSYMBOL_TOKENS:
@@ -241,5 +244,5 @@ class OwlbearScanner(GenericScanner):
         self.add_token(SYMBOL_TOKENS[s], s)
 
     def t_symbol(self, s):
-        r"[(){}[\]<>@/:;*,.|&#?!+=-]"
+        r"[(){}[\]<>@/:;*,.%|&#?!+=-]"
         self.add_token(SYMBOL_TOKENS[s], s)

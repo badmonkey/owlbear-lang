@@ -1,87 +1,13 @@
-// header comment
 
-// multi line
-// comments
-// to describe
-// a thing
-//
+
 primitive red, green, blue
-type color is (red | green | blue)  // all the comments
-
-"""
-A multi line
-string // with embedded comment
-must handle
-updating lineno
-"""
-"adjacent" "strings"
-
-//>>>>>
-block comment?
-this is a pain to regex
-<<<<<<//
-
-//> turns out it wasn't so bad<//
-
-0xdeadBEEF
-
-0b0001001001010
-
-0o777
-
-1000.0002
-
-42
-
-100j
-
-type map is Hashmap({string: int}, 78)
-
-// comment before?
-aFunc(0):- int -> 0;
-
-aFunc(x: int): ->
-    // comments in the body
-
-    some_expr_with_x / 2
-end
+type color is (red | green | blue)
 
 
 main(arg1: String, arg2: int): receive({color, string}) int | error ->
     let x : int = 42
     let x : int = maybeint?()
     let? (a, b) = #somefunc(10, 20.23)
-
-    try
-        let a = receive
-        "#make_message?() ~> process1"
-        "#catch()"
-        cond
-            y == 10 -> expr
-            x != 4 -> expr
-            not a or b -> expr
-            !b or a -> expr
-        end
-        case?
-            patten -> expr;
-            patten ->
-                "try?"
-                    expr
-                catch
-                finally
-                end
-        end
-        first |> second |> third
-        with pattern = expr
-            expr
-        end
-        let name = "some string" or 'alternative " string'
-
-    catch
-        expr
-        expr
-    end
-    let x = expr
 
 
 public hello(x: Greetable(Frog)): int | error ->
