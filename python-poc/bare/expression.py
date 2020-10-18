@@ -1,17 +1,48 @@
-class Expression:
+import typing
+
+from .statement import Expression
+from .typexpr import TypeExpr
+
+
+class OrExpr(Expression):
     pass
 
 
-class BinaryExpression(Expression):
-    def __init__(self, op, expr):
-        self.op = op
-        self.terms = [expr]
-
-    def add_term(self, expr):
-        self.terms.append(expr)
+class AndExpr(Expression):
+    pass
 
 
-class PrefixExpression(Expression):
-    def __init__(self, op, expr):
-        self.op = op
-        self.expr = expr
+class CompareExpr(Expression):
+    pass
+
+
+class SumExpr(Expression):
+    pass
+
+
+class ShiftExpr(Expression):
+    pass
+
+
+class MultExpr(Expression):
+    pass
+
+
+class DivRemExpr(Expression):
+    pass
+
+
+class PrefixExpr(Expression):
+    pass
+
+
+class LiteralExpr(Expression):
+    pass
+
+
+class ErrorExpr(Expression):
+    pass
+
+
+class VarExpr(Expression):
+    pass

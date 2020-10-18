@@ -1,8 +1,5 @@
-import re
-
 from spark_parser import GenericASTBuilder
 from spark_parser.ast import AST
-from owlbear.scanner import OwlbearScanner
 
 DEFAULT_DEBUG = {
     "rules": True,
@@ -46,7 +43,6 @@ class OwlbearParser(GenericASTBuilder):
 
         form ::= TYPE NAME
         form ::= statement
-
         """
 
     def p_imports(self, args):
@@ -89,9 +85,9 @@ class OwlbearParser(GenericASTBuilder):
 
         expr_mult ::= expr_prefix
         expr_mult ::= expr_prefix STAR expr_mult
+        expr_mult ::= expr_prefix BAND expr_mult
         expr_mult ::= expr_prefix DIV expr_mult
         expr_mult ::= expr_prefix PERCENT expr_mult
-        expr_mult ::= expr_prefix BAND expr_mult
 
         expr_prefix ::= expr_call
         expr_prefix ::= MINUS expr_call

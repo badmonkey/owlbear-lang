@@ -1,7 +1,8 @@
+import bare
 import click
 
+from owlbear.parser import VERBOSE_DEBUG, OwlbearParser
 from owlbear.scanner import OwlbearScanner
-from owlbear.parser import OwlbearParser, VERBOSE_DEBUG
 
 
 def init():
@@ -16,7 +17,7 @@ def main():
 
 @main.command("scan")
 @click.argument("owlfile", type=click.File("r"))
-def main_tree(owlfile):
+def main_scan(owlfile):
     """ Print tokens from file """
 
     scan = OwlbearScanner()
@@ -33,7 +34,7 @@ def main_tree(owlfile):
 @main.command("parse")
 @click.argument("owlfile", type=click.File("r"))
 @click.option("--verbose", "-v", is_flag=True)
-def main_tree(owlfile, verbose):
+def main_parse(owlfile, verbose):
     """ Print AST from file """
 
     scan = OwlbearScanner()
@@ -52,3 +53,21 @@ def main_tree(owlfile, verbose):
 
     print("-" * 40)
     print(ast)
+
+
+@main.command("build")
+def main_build():
+    target = bare.Target()
+
+    pack = target.package("std.owlbear")
+    mod1 = pack.module("list")
+    mod2 = target.module("std.owlbear.map")
+
+    fun1 = bare.Function("fpadd", context=mod1)
+    mod1.add(fun1)
+    mod1.add(bare.Function("fpadd2", context=fun1, private=True))
+
+    mod2.add(bare.Function("fpadd1", context=mod2))
+
+    print(bare.target)
+    target.print()

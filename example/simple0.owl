@@ -29,4 +29,5 @@ cond
         p + 1
       end
     otherwise -> error
+    true -> error
 end
