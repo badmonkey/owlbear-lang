@@ -8,7 +8,7 @@ RESERVED_WORDS = re.split(
     r"\s+",
     """
 is as or
-not and let try end bor bsl bsr
+not and let try end bor bsl bsr rem
 type with self case cond bnot band true
 error catch begin false
 import
@@ -47,7 +47,7 @@ SYMBOL_TOKENS = {
     ">": "CMPGT",
     "*": "STAR",
     "/": "DIV",
-    "%": "PERCENT",
+    "%": "REM",
     "!": "EXCLAIM",
     "?": "QMARK",
     "#": "HASH",

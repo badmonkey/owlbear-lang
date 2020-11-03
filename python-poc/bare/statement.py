@@ -11,6 +11,9 @@ class Statement:
     def type(self) -> TypeExpr:
         pass
 
+    def llvm_name(self) -> str:
+        pass
+
 
 class Expression(Statement):
     pass
@@ -41,7 +44,7 @@ class ReceiveStatement(Statement):
 
 class CondClause:
     def __init__(self):
-        self._predicateExpr = None
+        self._predicate_expr = None
         self._scope: Scope = None
         self._body: Statement = None
 
@@ -49,7 +52,7 @@ class CondClause:
 class CondStatement(Statement):
     def __init__(self):
         super().__init__()
-        self._clauses: typing.List[CondClause]
+        self._clauses: typing.List[CondClause] = []
 
 
 class TryStatement(Statement):

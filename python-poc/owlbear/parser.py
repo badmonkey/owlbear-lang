@@ -21,7 +21,8 @@ VERBOSE_DEBUG = {
 
 
 class OwlbearParser(GenericASTBuilder):
-    def __init__(self, start="module", debug=DEFAULT_DEBUG):
+    def __init__(self, start="module", debug=None):
+        debug = debug or DEFAULT_DEBUG
         super().__init__(AST, start, debug=debug)
 
     def error(self, tokens, index):
@@ -87,7 +88,7 @@ class OwlbearParser(GenericASTBuilder):
         expr_mult ::= expr_prefix STAR expr_mult
         expr_mult ::= expr_prefix BAND expr_mult
         expr_mult ::= expr_prefix DIV expr_mult
-        expr_mult ::= expr_prefix PERCENT expr_mult
+        expr_mult ::= expr_prefix REM expr_mult
 
         expr_prefix ::= expr_call
         expr_prefix ::= MINUS expr_call
@@ -105,6 +106,8 @@ class OwlbearParser(GenericASTBuilder):
         expr_leaf ::= NAME
         expr_leaf ::= expression DOT NAME
         """
+        # list comprehensions
+        # map projections
 
     def p_pattern(self, args):
         """
