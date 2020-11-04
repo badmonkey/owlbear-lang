@@ -54,9 +54,22 @@ class Constant(Named):
 
 
 class Scope:
-    def __init__(self, parent: typing.Optional["Scope"] = None):
+    def __init__(self, parent: typing.Optional["Scope"] = None, share_temps: bool = True):
         self._parent: typing.Optional["Scope"] = parent
         self._values: typing.Dict[str, Named] = {}
+        self._share_temps: bool = share_temps
+        self._tmpname: int = 0
+
+    @property
+    def next_tmp(self) -> int:
+        tmp = self._tmpname
+        self._tmpname += 1
+        return tmp
+
+    def llvm_temp(self) -> str:
+        if self._share_temps and self._parent:
+            return self._parent.llvm_temp()
+        return f"%{self.next_tmp}"
 
     def exists(self, name: str) -> bool:
         if name in self._values:
