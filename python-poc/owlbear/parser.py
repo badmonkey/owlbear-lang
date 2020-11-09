@@ -73,22 +73,28 @@ class OwlbearParser(GenericASTBuilder):
         expr_cmp ::= expr_list CMPLT expr_list
         expr_cmp ::= expr_list CMPGT expr_list
 
-        expr_list ::= expr_sum
-        expr_list ::= expr_sum LSTADD expr_list
-        expr_list ::= expr_sum LSTSUB expr_list
+        expr_list ::= expr_bin
+        expr_list ::= expr_bin LSTADD expr_list
+        expr_list ::= expr_bin LSTSUB expr_list
+
+        expr_bin ::= expr_sum
+        expr_bin ::= expr_sum BOR expr_bin
+        expr_bin ::= expr_sum BXOR expr_bin
+        expr_bin ::= expr_sum BAND expr_bin
+        expr_bin ::= expr_sum BSL expr_bin
+        expr_bin ::= expr_sum BSR expr_bin
 
         expr_sum ::= expr_mult
         expr_sum ::= expr_mult PLUS expr_sum
         expr_sum ::= expr_mult MINUS expr_sum
-        expr_sum ::= expr_mult BOR expr_sum
-        expr_sum ::= expr_mult BSL expr_sum
-        expr_sum ::= expr_mult BSR expr_sum
 
-        expr_mult ::= expr_prefix
-        expr_mult ::= expr_prefix STAR expr_mult
-        expr_mult ::= expr_prefix BAND expr_mult
-        expr_mult ::= expr_prefix DIV expr_mult
-        expr_mult ::= expr_prefix REM expr_mult
+        expr_mult ::= expr_pow
+        expr_mult ::= expr_pow STAR expr_mult
+        expr_mult ::= expr_pow DIV expr_mult
+        expr_mult ::= expr_pow REM expr_mult
+
+        expr_pow ::= expr_prefix
+        expr_pow ::= expr_prefix POW expr_pow
 
         expr_prefix ::= expr_call
         expr_prefix ::= MINUS expr_call

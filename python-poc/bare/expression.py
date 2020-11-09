@@ -13,3 +13,11 @@ class ErrorExpr(Expression):
 
 class VarExpr(Expression):
     pass
+
+
+class ReceiveExpr(Expression):
+    pass
+
+
+class MemoryExpr(Expression):
+    pass

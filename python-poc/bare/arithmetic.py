@@ -14,15 +14,16 @@ class ShiftExpr(Expression):
         BIN_SHIFT_RIGHT = 2
 
 
-class DivRemExpr(Expression):
+class OtherMultExpr(Expression):
     """
-    for infix ops: / %
+    for infix ops: / % **
     """
 
     @unique
     class Op(Enum):
         ARITH_DIV = 1
         ARITH_REM = 2
+        ARITH_POW = 3
 
 
 class PrefixExpr(Expression):

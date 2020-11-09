@@ -38,10 +38,6 @@ class DebugStatement(Statement):
         self._body: Statement
 
 
-class ReceiveStatement(Statement):
-    pass
-
-
 class CondClause:
     def __init__(self):
         self._predicate_expr = None

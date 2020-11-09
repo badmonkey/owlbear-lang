@@ -5,7 +5,7 @@ from .statement import Expression
 
 class CommutativeExpr(Expression):
     """
-    for ops: + * band bor
+    for ops: + * band bor bxor
     """
 
     @unique
@@ -14,3 +14,4 @@ class CommutativeExpr(Expression):
         ARITH_MULT = 2
         BIN_AND = 3
         BIN_OR = 4
+        BIN_XOR = 5
