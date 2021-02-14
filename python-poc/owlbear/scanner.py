@@ -16,6 +16,7 @@ primitive receive finally undefined otherwise
 """,
 )
 
+# |>  -!>  !->
 LONGSYMBOL_TOKENS = {
     "#[": "LAMBDA",
     "~>": "SEND",

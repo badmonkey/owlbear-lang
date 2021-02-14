@@ -1,0 +1,227 @@
+
+
+
+10000L
+1000i
+
+1000_km
+1000_Int32 => #Int32(1000)
+
+1000:Int32
+1000#Int32
+
+
+https://bitstring.software/documentation/
+
+
+(* block style comments
+multiline *)
+
+
+let x = peek foo
+
+
+register netduino
+    intr: addr
+    serial0: i32 = 0x0004
+    mutex0: i32 = 0x0008
+end
+
+netduino.peek serial0
+
+let x : i32 = peek netduino.serial0
+0x42 ~> netduino.serial0
+
+read
+write
+cmpswap(*T, T, T): T
+
+
+
+
+
+package std.owl
+module mod
+
+def foo()
+    soemthing
+using
+    def bar()
+        more
+    using
+        def taz()
+        end
+    end
+end
+
+
+std.owl
+std.owl.mod
+std.owl.mod.foo
+std.owl.mod.foo$bar
+std.owl.mod.foo$bar.taz
+
+
+apache.project.list
+~~~~~~ ~~~~~~~ ~~~~
+
+(:name:.)(:name:.)(:name:.)+
+~~~~~~~~~                        org name
+         ~~~~~~~~~               project name
+                  ~~~~~~~~~~     module tree
+
+/org                             ; org
+/org/proj                        ; project, product, library
+/org/proj/list.owl               ; module
+
+
+
+== package ==
+
+org-project.zip
+
+zip#/package.yml
+zip#/org/project/module-tree**
+zip#/project/module-tree**
+
+
+
+class foo
+  name: string
+  age: int
+
+  public setAge(amt: int): foo ->
+    self#{age: amt}
+  end
+
+  mutating setAge(self: foo, amt: int): mutate(foo) ->
+    self.age = amt
+  end
+end
+
+
+
+block
+  body1
+
+  guard condexpr else
+    gbody
+  end
+
+  body2
+end
+
+bare
+  cond
+    not condexpr -> gbody
+    otherwise -> body2
+  end
+end
+
+
+
+func name1(fn)
+func nameN(..., fn)
+
+
+name1 ->
+  body
+end
+
+nameN(...)
+  body
+end
+
+nameN(0, list) do
+  body
+end
+
+nameN 0, list do
+  body
+end
+
+
+name1 ->
+name1 x, y ->
+name1 as x, y ->
+name1 with x, y ->
+
+name1 do
+  body
+end
+
+
+var name: Type {
+    get { return self._x }
+    set(newX) { self._x = newX }
+}
+
+
+getName(): Type -> _x
+setName(newX: TYpe): void -> newX -!> self._x
+
+
+type Name
+     #Name(value: T2) ->
+
+
+variant Name
+    case tag1
+    case tag2(Int)
+    case tag3(Int, Bool, String)
+
+
+let x = Name.tag1
+let y = Name.tag2(42)
+
+match x ->
+match x ->
+    case tag1 -> "tag1"
+    case tag2(N) -> "tag2" + str(N)
+    case tag3(N, pretty, name) ->
+        tmp =   if
+                    pretty -> "XXX"
+                    N < 10 -> "AAA"
+                    otherwise -> "BBB"
+                end
+        "tag3:" + tmp
+    end
+
+
+
+type foo = ...
+
+type bar = indirect foo
+
+error to indirect a type smaller then a pointer size
+
+
+struct {
+       char
+       union {
+            int
+            struct{char, int, struct{int, char*}}
+       }
+       int
+}
+
+int   4:4:0
+char*:int       8:12:4
+struct{ struct{char*,int}, int, char }      8:17:1
+union{int, struct{ struct{char*,int}, int, char } }     8:17:1
+struct{union{int, struct{ struct{char*,int}, int, char } }, char[3], int, char}  8:25:1
+
+int,char[4],char*       8:16:0
+struct{ char, char[3], int, struct{int,char[4],char*} } 8:24:0
+union{int, struct{ char, char[3], int, struct{int,char[4],char*} } }  8:24:0
+struct{char, char[3], int, union{int, struct{ char, char[3], int, struct{int,char[4],char*} } } }  8:32:0
+
+
+struct{[pad1],char,char,char|int}                           4:1:8:0
+
+struct{|int,struct{pad1,char,char,char|int}}                4:0:12:0
+struct{struct{[pad1],char,char,char|int}|int}               4:1:16:0
+
+struct{struct{struct{[pad1],char,char,char|int}|int},char*,char} 8:1:25:1
+
+struct{char,struct{struct{char,char,char|int}|int},char*}   8:0:24:0
