@@ -1,8 +1,8 @@
 import bare
 import click
 
-from owlbear.parser import VERBOSE_DEBUG, OwlbearParser
-from owlbear.scanner import OwlbearScanner
+from owl.parser import VERBOSE_DEBUG, OwlbearParser
+from owl.scanner import OwlbearScanner
 
 
 def init():
