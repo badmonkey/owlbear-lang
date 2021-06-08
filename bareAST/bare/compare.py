@@ -1,11 +1,11 @@
 from enum import Enum, unique
 
-from .statement import Expression
+from .block import Expression
 
 
 class CompareExpr(Expression):
     """
-    for infix ops: == != < > <= >=
+    for infix ops: `== != < > <= >=`
     """
 
     @unique

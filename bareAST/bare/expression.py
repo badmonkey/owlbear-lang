@@ -1,4 +1,4 @@
-from .statement import Expression
+from .block import Expression
 
 
 class LiteralExpr(Expression):
@@ -21,3 +21,10 @@ class ReceiveExpr(Expression):
 
 class MemoryExpr(Expression):
     pass
+
+
+class IfElseExpr(Expression):
+    def __init__(self, cond: Expression, iftrue: Expression, iffalse: Expression):
+        self._cond: Expression = cond
+        self._iftrue: Expression = iftrue
+        self._iffalse: Expression = iffalse

@@ -148,7 +148,9 @@ class OwlbearScanner(GenericScanner):
         # before blockcomment,comment: so comments in strings are captured as strings
         cnt = s.count("\n")
         if cnt > 0:
-            self.error(s, "Single quoted strings can't be multiline", symlen=s.find("\n"), quote="|")
+            self.error(
+                s, "Single quoted strings can't be multiline", symlen=s.find("\n"), quote="|"
+            )
             self.lineno += cnt  # so lineno remains good if we skip the error
             return
 
@@ -182,7 +184,9 @@ class OwlbearScanner(GenericScanner):
         # scanner uses a looser regexp to catch common errors
         # ie '0x_ff' shouldn't be interpreted as the tokens '0' 'x_ff'
 
-        if not re.fullmatch(r"(0x[0-9A-Fa-f](_?[0-9A-Fa-f])*|0b[01](_?[01])*|0o[0-7](_?[0-7])*)", s):
+        if not re.fullmatch(
+            r"(0x[0-9A-Fa-f](_?[0-9A-Fa-f])*|0b[01](_?[01])*|0o[0-7](_?[0-7])*)", s
+        ):
             self.error(s, "Invalid formatted radix number literal")
             return
         self.add_token("NUMBER", s, text=s, is_literal=True)

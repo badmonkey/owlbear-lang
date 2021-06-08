@@ -38,7 +38,7 @@ class Module(Named):
 
     def add(self, item: Named):
         self._symbols.add(item)
-        item.codegen()
+        # item.codegen()
 
     def print(self):
         print(self.llvm)
