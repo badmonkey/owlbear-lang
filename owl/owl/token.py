@@ -15,7 +15,7 @@ class OwlbearToken(GenericToken):
         self.extra = kwargs
 
     def __str__(self):
-        return super().__str__() + ((", extra: " + str(self.extra)) if self.extra else "")
+        return super().__str__() + f", l.{self.lineno + 1} c.{self.column}" + ((", extra: " + str(self.extra)) if self.extra else "")
 
     def text(self):
         if "text" in self.extra:

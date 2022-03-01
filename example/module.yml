@@ -1,0 +1,33 @@
+---
+mycompany.example:
+  targets:
+    - target-triples
+    - machine-vendor-operatingsystem
+    - <arch><sub>-<vendor>-<sys>-<abi>
+    - x86_64-linux-gnu
+    - *-linux-gnu:
+        include:
+          - impl_linux.owl
+    - riscv64-none-elf
+  requires:
+    - stdlib
+    - mycompany.stdlib +thing
+  define:
+    - VERSION: "1.0.0"
+    - SOMETHING: 1
+  exclude:
+    - old-file.owl
+    - impl_*.owl
+  features:
+    win32:
+      - feature-config
+    linux:
+      reject:
+        - win32
+      include:
+        - impl_linux.owl
+
+---
+minimal.module:
+  requires:
+    - stdlib

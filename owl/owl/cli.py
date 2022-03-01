@@ -29,6 +29,8 @@ def main_scan(owlfile):
     print("-" * 40)
     for t in tokens:
         print(t)
+        print(t.highlight())
+        print("\n")
 
 
 @main.command("parse")

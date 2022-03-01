@@ -1,33 +1,49 @@
 
+try
+    let x = -1_000_000;
+    x * 100
+catch
+    error
 
-let thing1 = 42 + (x * 2) / 1e1;
+try
+    // some comment
+    let x = -9_999_000;
+    x * 99
+catch
+    error
 
-let thing2 = foo() + std.foo();
-
-let thing3 = begin
-                let x = 1;
-                try
-                    let x = -1_000_000;
-                    x * 100
-                catch
-                    error
-                end
-                begin
-                    let? x = foo.bar()
-                    let y = foo().bar()
-                    #red
-                end
-             end
-
-let thing4 =
 cond
     x < y -> x;
     x == y -> y * 2
     x > y ->
-      begin
         let p = 3
         p + 1
-      end
+
     otherwise -> error
-    true -> error
-end
+    true ->
+        error
+        // ending comment
+
+try
+    //> a block comment
+    more lines
+    end of block
+    <<<<<<<<<//
+
+    let x = 1 +
+            2
+    // more comment
+    // block comment
+catch
+    error
+
+try
+    let str = "string test"
+    let str = f'string test'
+    let text = """
+some text
+    with indent
+"""
+catch
+    // one comment line
+       // indented comment

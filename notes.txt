@@ -1,4 +1,8 @@
 
+traits are not types
+traits are constraints on type vars that require types
+to implement certain funcs. like interfaces, 'cept interfaces
+_are_ types.
 
 
 10000L
@@ -74,6 +78,21 @@ apache.project.list
 /org/proj                        ; project, product, library
 /org/proj/list.owl               ; module
 
+
+
+import std.map as map
+
+import io.text as text
+
+from io.text import read, write into text
+from io.text.encoding import encode into text
+
+
+using std.map as map
+
+using text
+   from io.text import read, write
+   from io.text.encoding import encode
 
 
 == package ==

@@ -4,13 +4,24 @@ from spark_parser.scanner import GenericScanner
 
 from owl.token import OwlbearToken
 
+TOKEN_BEGIN = "BEGIN"
+TOKEN_END = "END"
+TOKEN_NEWLINE = "NEWLINE"
+TOKEN_BAD = "!BAD!"
+TOKEN_STRING = "STRING"
+TOKEN_COMMENT = "COMMENT"
+TOKEN_NUMBER = "NUMBER"
+TOKEN_NAME = "NAME"
+TOKEN_ENDMARK = "ENDMARK"
+
+
 RESERVED_WORDS = re.split(
     r"\s+",
     """
 is as or
-not and let try end bor bsl bsr div rem pow
+not and let try bor bsl bsr div rem pow
 type with self case cond bnot band true bxor
-error catch begin false
+error catch false
 import memory
 primitive receive finally undefined otherwise
 """,
@@ -64,9 +75,6 @@ SYMBOL_TOKENS = {
 }
 
 
-END_TOKEN = r""
-
-
 # delattr(GenericScanner, "t_default")
 
 
@@ -80,7 +88,9 @@ class OwlbearScanner(GenericScanner):
 
         # print(self.re.pattern)
         self.lineno = 0
-        self.column0 = 1
+        self.column0 = 0
+        self.is_newline = True
+        self.indents = [0]
         self.continue_after_error = False
         self.tokens = []
         self.lines = []
@@ -88,20 +98,54 @@ class OwlbearScanner(GenericScanner):
     def tokenize(self, s):
         self.tokens = []
         self.lines = s.splitlines()
+
         GenericScanner.tokenize(self, s)
+
+        self.lines.append("")
+        self.add_token(TOKEN_NEWLINE, ' ', is_newline=True)
+        self.add_token(TOKEN_ENDMARK, r"")
+
         return self.tokens
 
-    def add_token(self, name, s, **kwargs):
-        t = OwlbearToken(
-            kind=name,
-            attr=s,
-            line=self.lines[self.lineno],
-            lineno=self.lineno,
-            column=(self.pos - self.column0),
-            **kwargs,
-        )
+    def add_token(self, name, s, is_newline=False, offset=0, **kwargs):
+        t = OwlbearToken(kind=name,
+                         attr=s,
+                         line=self.lines[self.lineno],
+                         lineno=self.lineno,
+                         column=(self.pos - self.column0 + offset),
+                         **kwargs)
+        if is_newline:
+            self.lineno += 1
+            self.column0 = self.pos + 1
+
+        if self.is_newline and name not in [TOKEN_BEGIN, TOKEN_END, TOKEN_NEWLINE]:
+            while 0 < self.indents[-1]:
+                self.indents = self.indents[0:-1]
+                self.tokens.append(
+                    OwlbearToken(kind=TOKEN_END,
+                                 attr='}',
+                                 line=self.lines[self.lineno],
+                                 lineno=self.lineno,
+                                 column=(self.pos - self.column0 + offset)))
+
+        self.is_newline = is_newline
+
         self.tokens.append(t)
-        return t
+
+    def handle_indent(self, s):
+        indent = len(s)
+        if indent > self.indents[-1]:
+            self.add_token(TOKEN_BEGIN, '{')
+            self.indents.append(indent)
+        if indent == self.indents[-1]:
+            self.is_newline = False
+        else:
+            # May need several levels of dedent
+            while indent < self.indents[-1]:
+                self.indents = self.indents[0:-1]
+                self.add_token(TOKEN_END, '}')
+
+        return
 
     def error(self, s, mesg=None, symlen=None, quote=None):
         # pylint: disable=arguments-differ
@@ -109,7 +153,7 @@ class OwlbearScanner(GenericScanner):
         symlen = symlen if custom else 1
         mesg = mesg or "Invalid character"
 
-        t = self.add_token("BADTOKEN", s, text=mesg)
+        t = self.add_token(TOKEN_BAD, s, text=mesg)
 
         print(f"Lexical error line {self.lineno + 1}: {mesg}")
         print(t.highlight(symlen=symlen, quote=quote))
@@ -127,20 +171,20 @@ class OwlbearScanner(GenericScanner):
         r"\n"
 
         # before t_whitespace: so "\n" is matched before "\s"
-
-        # print(f"COMPLETE.{self.lineno} [{self.lines[self.lineno]}]")
-        self.lineno += 1
-        self.column0 = self.pos + 1
+        self.add_token(TOKEN_NEWLINE, ' ', is_newline=True)
 
     def t_whitespace(self, _s):
         r"\s+"
+
+        if self.is_newline:
+            self.handle_indent(_s)
 
     def t_blockstring(self, s):
         r"([\"]{3}(.|[\n])*?[\"]{3})|('{3}(.|[\n])*?'{3})"
 
         # before string: so "'''" is matched before "'"
         self.lineno += s.count("\n")
-        self.add_token("STRING", s.strip(s[0]), text=s, is_literal=True)
+        self.add_token(TOKEN_STRING, s.strip(s[0]), text=s, is_literal=True)
 
     def t_string(self, s):
         r"[a-zA-Z]?(('[^']*?')|(\"[^\"]*\"))"
@@ -155,11 +199,16 @@ class OwlbearScanner(GenericScanner):
             return
 
         raw = s
-        enc = "?"
+        enc = None
         if s[0] not in "\"'":
             enc = s[0]
             s = s[1:]
-        self.add_token("STRING", s.strip(s[0]), text=raw, encode=enc, is_literal=True)
+        self.add_token(TOKEN_STRING,
+                       s.strip(s[0]),
+                       text=raw,
+                       encode=enc if enc else "utf8",
+                       is_literal=True,
+                       offset=2 if enc else 1)
 
     def t_blockcomment(self, s):
         r"//>+([\s\S]*?)<+//"
@@ -169,13 +218,13 @@ class OwlbearScanner(GenericScanner):
         block = s.strip("/")
         block = block.lstrip(">")
         block = block.rstrip("<")
-        self.add_token("COMMENT", block, text=s)
+        self.add_token(TOKEN_COMMENT, block, text=s)
 
     def t_comment(self, s):
-        r"//[^\n]*(\n//[^\n]*)*"
-        self.lineno += s.count("\n")
-        block = "\n".join([ln.lstrip("/") for ln in s.splitlines()])
-        self.add_token("COMMENT", block, text=s)
+        r"//[^\n]*"
+
+        v = s.lstrip("/")
+        self.add_token(TOKEN_COMMENT, v, text=s, offset=2)
 
     def t_radix(self, s):
         r"(0x[_0-9A-Fa-f]+|0b[_01]+|0o[_0-7]+)"
@@ -189,7 +238,7 @@ class OwlbearScanner(GenericScanner):
         ):
             self.error(s, "Invalid formatted radix number literal")
             return
-        self.add_token("NUMBER", s, text=s, is_literal=True)
+        self.add_token(TOKEN_NUMBER, s, text=s, is_literal=True)
 
     def t_number_like_names(self, s):
         r"_?\d+[.A-Za-z_0-9+-]*"
@@ -213,7 +262,7 @@ class OwlbearScanner(GenericScanner):
             self.error(s, "Invalid formatted number literal")
             return
 
-        self.add_token("NUMBER", s, text=s, is_literal=True)
+        self.add_token(TOKEN_NUMBER, s, text=s, is_literal=True)
 
     def t_longsymbol(self, s):
         r"[!*~+><=-][*+<>=-]"
@@ -239,7 +288,7 @@ class OwlbearScanner(GenericScanner):
         if s in RESERVED_WORDS:
             self.add_token(s.upper(), s)
         else:
-            self.add_token("NAME", s)
+            self.add_token(TOKEN_NAME, s)
 
     def safe_symbol(self, s):
         if s not in SYMBOL_TOKENS:
