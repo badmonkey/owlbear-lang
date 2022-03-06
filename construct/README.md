@@ -16,21 +16,18 @@ datatype Inputs
     case output(string)
     case plus(integer)
     case minus(integer)
-end
 
 datatype Bank
     case credit(integer)
     case debt(integer)
     case halt(string)
-end
 
 
 machine MACHINE(EVENT) : STATE = INIT
 
 on EVENT
     when STATE
-    end
-end
+        ...
 
 
 machine Test1(Inputs) : Bank = credit(0)
@@ -38,14 +35,12 @@ machine Test1(Inputs) : Bank = credit(0)
 on plus(n)
     when credit(X)
         return credit(X+n)
-    end
 
     when debt(X)
         if n >= X then
             return credit(n-X)
         return debt(X-n)
-    end
-end
+
 
 on plus(n)
     when credit(X) -> credit(X+n)
@@ -53,7 +48,6 @@ on plus(n)
         ifcond
             n >= X -> credit(n-X)
             otherwise -> debt(x-N)
-end
 
 
 ---------------------------------------------------
@@ -63,24 +57,20 @@ machine MACHINE(EVENT) : STATE = INIT
 state STATE
     on EVENT -> STATE
        statements
-    end
-end
+
 
 machine Test1(Inputs) : Bank -> credit(0)
 
 state credit(X)
     on plus(n)
         return credit(X+n)
-    end
 
     on minus(n)
         guard n <= X else
             return debt(n-X)
-        end
 
         return credit(X-n)
-    end
-end
+
 
 state credit(X)
     on plus(n) -> credit(X+n)
@@ -88,7 +78,7 @@ state credit(X)
     on minus(n) when n <= X -> credit(X-n)
 
     on minus(n) otherwise -> debt(n-X)
-end
+
 
 
 ---------------------------------------------------
@@ -97,3 +87,15 @@ end
 var foo : Test1 = Test1()
 foo.plus(10)
 foo.minus(10)
+
+
+
+---------------------------------------------------
+
+self: STATE
+handle(self: STATE, evt: EVENT): STATE
+    ...
+
+
+
+self = handle(self, event)

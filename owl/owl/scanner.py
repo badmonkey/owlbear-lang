@@ -1,4 +1,5 @@
 import re
+from enum import Enum
 
 from spark_parser.scanner import GenericScanner
 
@@ -75,6 +76,14 @@ SYMBOL_TOKENS = {
 }
 
 
+class FilterState(Enum):
+        PASS_TOKEN = 1
+        WAIT_CLOSE_BRACKET = 2
+        WAIT_END_SCOPE = 3
+        SQUASH_NEWLINES = 4
+        SQUASH_COMMENTS = 5
+
+
 # delattr(GenericScanner, "t_default")
 
 
@@ -97,6 +106,8 @@ class OwlbearScanner(GenericScanner):
 
     def tokenize(self, s):
         self.tokens = []
+
+        s = s.rstrip("\n")
         self.lines = s.splitlines()
 
         GenericScanner.tokenize(self, s)
@@ -104,6 +115,8 @@ class OwlbearScanner(GenericScanner):
         self.lines.append("")
         self.add_token(TOKEN_NEWLINE, ' ', is_newline=True)
         self.add_token(TOKEN_ENDMARK, r"")
+
+        # self.tokens = list(self.filtered_tokens())
 
         return self.tokens
 
@@ -162,6 +175,76 @@ class OwlbearScanner(GenericScanner):
             return
 
         raise SystemExit
+
+    def filtered_tokens(self):
+        state = [FilterState.PASS_TOKEN]
+
+        for t in self.tokens:
+            match state[-1]:
+                case FilterState.PASS_TOKEN:
+                    match t.kind:
+                        case 'LPAREN':
+                            state.append(FilterState.WAIT_CLOSE_BRACKET)
+                        case "NEWLINE":
+                            state.append(FilterState.SQUASH_NEWLINES)
+                        case _:
+                            pass
+                    yield t
+
+                case FilterState.WAIT_CLOSE_BRACKET:
+                    match t.kind:
+                        case 'RPAREN':
+                            state.pop()
+                            yield t
+                        case 'LPAREN':
+                            state.append(FilterState.WAIT_CLOSE_BRACKET)
+                            yield t
+                        case 'BEGIN':
+                            state.append(FilterState.WAIT_END_SCOPE)
+                            # drop the BEGIN
+                        case _:
+                            yield t
+
+                case FilterState.WAIT_END_SCOPE:
+                    match t.kind:
+                        case 'END':
+                            state.pop()
+                            # drop the END
+                        case 'BEGIN':
+                            state.append(FilterState.WAIT_END_SCOPE)
+                            # drop the BEGIN
+                        case 'LPAREN':
+                            state.append(FilterState.WAIT_CLOSE_BRACKET)
+                            yield t
+                        case _:
+                            yield t
+
+                case FilterState.SQUASH_NEWLINES:
+                    if t.kind != TOKEN_NEWLINE:
+                        state.pop()
+                        yield t
+
+                case FilterState.SQUASH_COMMENTS:
+                    pass
+
+
+    def as_string(self):
+        s = ""
+        istr = ""
+        for t in self.tokens:
+            match t.kind:
+                case 'NEWLINE':
+                    s += "\n"
+                case 'BEGIN':
+                    s += f"{istr}{{\n"
+                    istr += "    "
+                case 'END':
+                    istr = istr[:-4]
+                    s += f"{istr}}}\n"
+                case _:
+                    s += istr
+                    s += t.text()
+        return s
 
     @staticmethod
     def contains(s, tst):

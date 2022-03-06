@@ -1,49 +1,76 @@
 
-try
-    let x = -1_000_000;
-    x * 100
+basic1
+    inner_scope
 catch
     error
 
-try
+
+basic2
     // some comment
-    let x = -9_999_000;
-    x * 99
+    inner_scope
+    // another comment
 catch
     error
 
-cond
-    x < y -> x;
-    x == y -> y * 2
-    x > y ->
-        let p = 3
-        p + 1
+basic3
+    inner1 -> 1
+    inner2 -> 2
+    inner3 ->
+        deeper
+        // comment
 
     otherwise -> error
     true ->
+        // multiple dedents
         error
-        // ending comment
 
-try
-    //> a block comment
-    more lines
-    end of block
-    <<<<<<<<<//
 
+indent1(param1,
+        param2,
+        param3)
+
+indent2(
+    param1,
+    param2,
+    param3)
+
+indent3( param1
+       , param2
+       , param3)
+
+
+expr1
     let x = 1 +
-            2
-    // more comment
-    // block comment
-catch
-    error
+            2 +
+            3
 
-try
-    let str = "string test"
-    let str = f'string test'
-    let text = """
+    let x = ( 1
+            + 2
+            + 3)
+
+expr2
+    x = (1 + 2 + (
+            3 *
+            4 *
+            5 ))
+
+comment1
+// multiple comment lines
+// more comments
+scope
+    // multiple comment lines
+    // more comments
+
+comment2
+    // comment lines
+       // with different indents
+    // are scoped?
+
+
+string1
+    "string test"
+    f'string test'
+    """
 some text
     with indent
 """
-catch
-    // one comment line
-       // indented comment

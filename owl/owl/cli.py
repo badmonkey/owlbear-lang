@@ -27,6 +27,8 @@ def main_scan(owlfile):
     tokens = scan.tokenize(owlcode)
 
     print("-" * 40)
+    print(scan.as_string())
+    print("-" * 40)
     for t in tokens:
         print(t)
         print(t.highlight())
