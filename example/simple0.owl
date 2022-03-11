@@ -4,7 +4,6 @@ basic1
 catch
     error
 
-
 basic2
     // some comment
     inner_scope
@@ -24,19 +23,50 @@ basic3
         // multiple dedents
         error
 
+basic4
+    inner_scope
+catch
+    error
+end
+
+basic5
+    inner1 -> 1
+    inner2 -> 2
+    inner3 ->
+        deeper
+        // comment
+    end
+
+    otherwise -> error
+    true ->
+        // multiple dedents
+        error
+    end
+end
+
+
 
 indent1(param1,
         param2,
         param3)
 
-indent2(
+indent2(param1,
+        param2,
+        param3
+    )
+
+indent3(
     param1,
     param2,
     param3)
 
-indent3( param1
+indent4( param1
        , param2
        , param3)
+
+indent5(param1,
+    param2,
+            param3)
 
 
 expr1
@@ -74,3 +104,8 @@ string1
 some text
     with indent
 """
+
+endmarker
+    endmarker
+        endmarker
+            test

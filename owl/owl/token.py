@@ -1,4 +1,47 @@
+import enum
+import re
 from spark_parser.scanner import GenericToken
+
+
+class StrEnum(str, enum.Enum):
+    def __new__(cls, value, *args, **kwargs):
+        if not isinstance(value, (str, enum.auto)):
+            raise TypeError(
+                f"Values of StrEnums must be strings: {value!r} is a {type(value)}"
+            )
+        return super().__new__(cls, value, *args, **kwargs)
+
+    def __str__(self):
+        return str(self.value)
+
+    def _generate_next_value_(name, *_):
+        return name
+
+
+_TOKEN_KINDS = """
+  BEGIN UNDENT NEWLINE BAD STRING COMMENT NUMBER NAME ENDMARK
+  LAMBDA SEND ARROW LEFTARROW LBITSTRING RBITSTRING
+  CMPEQ CMPNOTEQ CMPLTEQ CMPGTEQ CMPLT CMPGT
+  LSTADD LSTSUB STAR EXCLAIM QMARK HASH
+  AT TYPESEP COMMA SEMI DOT PLUS MINUS EQUAL
+  LPAREN RPAREN LBRACE RBRACE LBRACKET RBRACKET
+"""
+
+_RESERVED_WORDS = """
+  is as or
+  not and let try bor bsl bsr div rem pow end
+  type with self case cond bnot band true bxor
+  error catch false
+  import memory
+  primitive receive finally undefined otherwise
+"""
+
+
+RESERVED_WORDS = {w for w in re.split(r"\s+", _RESERVED_WORDS) if w}
+
+
+Kind = StrEnum('Kind', _TOKEN_KINDS + _RESERVED_WORDS.upper())
+
 
 
 class OwlbearToken(GenericToken):

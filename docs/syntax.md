@@ -116,13 +116,14 @@ catch
 
 cond
     <cond> -> <body>
-    otherwise -> <body>
+otherwise -> <body>
 
 case <expr>
     <pat> -> <body>
     <pat> when <cond> -> <body>
-    otherwise -> <body>
     _ -> <body>
+otherwise
+    <body>
 
 try
     <statements-expr>
