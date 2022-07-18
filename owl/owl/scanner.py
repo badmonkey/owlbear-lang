@@ -5,6 +5,7 @@ from spark_parser.scanner import GenericScanner
 from .token import OwlbearToken, Kind, RESERVED_WORDS
 import owl.filter as filter
 
+TABSTOP = 8
 
 LONGSYMBOLS = {
     "#[": Kind.LAMBDA,
@@ -182,6 +183,10 @@ class OwlbearScanner(GenericScanner):
     def t_whitespace(self, _s):
         r"\s+"
 
+        #  if (c == ' ') {
+        #       col++
+        # if (c == '\t') {
+        #       col = (col / tok->tabsize + 1) * tok->tabsize;
         if self.is_newline:
             self.handle_indent(_s)
 

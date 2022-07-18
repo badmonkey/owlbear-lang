@@ -58,6 +58,16 @@ using
     end
 end
 
+def foo() -> "def private"
+def public foo()
+public foo()
+def private foo()
+private foo()
+
+public - visible outside the module
+package? - visible inside the module/package, but not outside
+private - visible only in file
+
 
 std.owl
 std.owl.mod
@@ -184,6 +194,7 @@ type Name
      #Name(value: T2) ->
 
 
+typeclass Name
 variant Name
     case tag1
     case tag2(Int)
@@ -193,7 +204,6 @@ variant Name
 let x = Name.tag1
 let y = Name.tag2(42)
 
-match x ->
 match x ->
     case tag1 -> "tag1"
     case tag2(N) -> "tag2" + str(N)
@@ -244,3 +254,61 @@ struct{struct{[pad1],char,char,char|int}|int}               4:1:16:0
 struct{struct{struct{[pad1],char,char,char|int}|int},char*,char} 8:1:25:1
 
 struct{char,struct{struct{char,char,char|int}|int},char*}   8:0:24:0
+
+
+
+
+https://tutorial.ponylang.io/reference-capabilities/capability-subtyping.html
+https://blog.acolyer.org/2016/02/17/deny-capabilities/
+
+capability
+==========
+unbound ...     ; the reference hasn't been bound to a var yet. ie the return from `new`
+bare/piece/elem/slice    ; raw ptr, struct inside another object? not a ref, can't alias
+
+ref             ; read/write
+val(ue)         ; read/shareable
+iso(lated)      ; read/write/sendable
+opaque          ; shareable
+box             ; read
+trans           ; read/write
+
+
+capability type
+
+let x: isolate string ...
+
+consume {cap, type} -> {unbound, cap, type}
+
+<: symbol to mean “is a subtype of”, or you can read it as “can be used as”.
+
+ref <: box
+val <: box
+box <: opaque
+unbound iso <: unbound trans
+unbound trans <: ref
+unbound trans <: val
+unbound iso <: iso
+unbound trans <: trans
+iso <: opaque
+trans <: box
+
+
+https://zartstrom.github.io/pony/2016/08/28/reference-capabilities-in-pony.html
+
+iso -> trn -> ref -> box -> tag
+          \-> val ->/
+
+Isolated (iso) - Mutable linear reference which is isolated and do not
+         allow aliases. Can be passed (but not shared) locally or to another actor.
+Reference (ref) - Mutable reference which can be shared within an actor,
+         but not between actors.
+Value (val) - Reference which is immutable and can have unlimited amount
+         of aliases. Can be passed locally or to another actor.
+Box (box) - Reference that is read-only. The referenced data can however
+         have other references to it that allow mutation.
+Transition (trn) - This capability is a combination of box and ref in the
+         sense that it acts as a ref except that no write alias is allowed to it, only
+         read aliases.
+Tag (tag) - Used for identification and for actors. One can call behaviors
+         from actors and otherwise only use it for equality functions.

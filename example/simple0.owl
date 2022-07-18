@@ -44,6 +44,14 @@ basic5
     end
 end
 
+basic6
+    body
+else
+    body
+finally
+    body
+end
+
 
 
 indent1(param1,
